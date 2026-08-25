@@ -17,6 +17,7 @@ const documents = {
   troubleshooting: await readDocument("docs/TROUBLESHOOTING.md"),
   thirdPartyLicenses: await readDocument("docs/THIRD_PARTY_LICENSES.md"),
   security: await readDocument("docs/SECURITY.md"),
+  securityChinese: await readDocument("docs/SECURITY.zh-CN.md"),
   upgrading: await readDocument("docs/UPGRADING.md"),
   performance: await readDocument("docs/PERFORMANCE.md"),
 };
@@ -169,7 +170,7 @@ for (
     "分布式限流",
   ]
 ) {
-  assertStringIncludes(documents.security, required);
+  assertStringIncludes(documents.securityChinese, required);
 }
 
 for (
@@ -298,6 +299,7 @@ async function validateLocalMarkdownLinks(): Promise<void> {
     "docs/TROUBLESHOOTING.md",
     "docs/THIRD_PARTY_LICENSES.md",
     "docs/SECURITY.md",
+    "docs/SECURITY.zh-CN.md",
     "docs/UPGRADING.md",
     "docs/PERFORMANCE.md",
   ];

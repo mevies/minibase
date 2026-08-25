@@ -88,7 +88,7 @@ Function 的根 `.env` 与 `supabase/functions/.env` 属于用户代码输入，
 公开 Function 应设置 `inject_service_role_key = false`。生产环境应按函数使用 allowlist 或 deny
 出站策略，必要时开启私网阻断；默认 allow 只适合可信的现有 Supabase Function。Auth
 密钥轮换与权限要求见 [Auth 密钥](./AUTH_KEYS.md)、[Auth 安全](./AUTH_SECURITY.md)和
-[安全模型与威胁边界](./SECURITY.md)。
+[安全模型与威胁边界](./SECURITY.zh-CN.md)。
 
 ## 6. 进程生命周期与健康检查
 
@@ -177,4 +177,5 @@ PostgreSQL 的未来数据库写入步骤没有事务或快照时仍会拒绝。
 - [ ] `/health/live` 与 `/health/ready` 已接入不同语义的探针。
 - [ ] 日志、磁盘、备份、ready 和 5xx 告警已经启用。
 - [ ] 已阅读[兼容性矩阵](./COMPATIBILITY.md)中的实验性与不支持能力。
-- [ ] 已按[安全模型与威胁边界](./SECURITY.md)确认可信代码、CSRF、SSRF、Service Role 和多实例边界。
+- [ ] 已按[安全模型与威胁边界](./SECURITY.zh-CN.md)确认可信代码、CSRF、SSRF、Service Role
+      和多实例边界。

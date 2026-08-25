@@ -349,7 +349,7 @@ block_private_networks = true
 - `allow_supabase_url = true`：即使使用 allowlist，也允许 Function 回调当前 Minibase API。
 
 普通 JSON API 与 OpenAI-compatible SSE 流式响应都受支持。更完整的公网部署要求见
-[生产部署指南](./docs/DEPLOYMENT.md)和[安全模型](./docs/SECURITY.md)。
+[生产部署指南](./docs/DEPLOYMENT.md)和[安全模型](./docs/SECURITY.zh-CN.md)。
 
 ### S3-compatible Storage
 
@@ -490,7 +490,7 @@ Node.js 不是 Minibase 的开发或运行依赖。Rust
 - [Embedded 与 Server 发行版选择](./docs/EDITIONS.md)
 - [Supabase 兼容性矩阵](./docs/COMPATIBILITY.md)
 - [生产部署指南](./docs/DEPLOYMENT.md)
-- [安全模型与威胁边界](./docs/SECURITY.md)
+- [安全模型与威胁边界](./docs/SECURITY.zh-CN.md)
 - [升级与回滚](./docs/UPGRADING.md)
 - [CLI 输出契约](./docs/CLI_OUTPUT.md)
 - [健康检查](./docs/HEALTH.md)
