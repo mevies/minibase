@@ -1,18 +1,18 @@
 {
   "formatVersion": 1,
   "schemaVersion": 3,
-  "promotedAt": "2026-08-05T12:14:12.218Z",
+  "promotedAt": "2026-08-25T16:39:49.723Z",
   "runnerId": "minibase-windows-lab-01",
   "hardwareFingerprint": "462f93fae9a13eb665edced36888eacdf83a2e6584f39522b0c8f19bd5e35511",
-  "commit": "1945e073aba09f9294da1d9fb79bca778e5eb74d",
+  "commit": "e161241ca8bb0d0f1d452655a27cd5a4dd72dc8b",
   "reports": {
     "pglite": {
       "fileName": "pglite.json",
-      "sha256": "922643a19c9232f1fa52c476d0a876c2146e4ab901cc99500e2210fe3a2b2572"
+      "sha256": "a4f8481479261945499557e62b386e9045adf1a487f1509d1ed4c393a00f9208"
     },
     "postgres": {
       "fileName": "postgres.json",
-      "sha256": "515f155f19bc7b749357b2159cf27ee5acd04e9d0e34c3a4c6afdcc9d5ffe7a7"
+      "sha256": "d1fae45ac2e7e8e24ff436d8b0b17b100fa7f7b30e86b6d7c470ff65d8b1d502"
     }
   }
 }

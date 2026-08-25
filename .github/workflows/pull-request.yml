@@ -33,14 +33,6 @@ jobs:
         with:
           deno-version: 2.9.2
 
-      - name: Fetch committed benchmark source
-        shell: bash
-        run: |
-          set -euo pipefail
-          source_commit="$(deno eval 'const evidence = JSON.parse(await Deno.readTextFile("benchmarks/fixed/minibase-windows-lab-01/evidence.json")); console.log(evidence.sourceCommit)')"
-          git fetch --no-tags origin "$source_commit"
-          git cat-file -e "$source_commit^{commit}"
-
       - name: Check formatting
         run: deno task fmt:check
 
