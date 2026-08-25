@@ -25,12 +25,21 @@ jobs:
       - name: Checkout commit
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Install fixed Deno runtime
         uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb
         with:
           deno-version: 2.9.2
+
+      - name: Fetch committed benchmark source
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_commit="$(deno eval 'const evidence = JSON.parse(await Deno.readTextFile("benchmarks/fixed/minibase-windows-lab-01/evidence.json")); console.log(evidence.sourceCommit)')"
+          git fetch --no-tags origin "$source_commit"
+          git cat-file -e "$source_commit^{commit}"
 
       - name: Check formatting
         run: deno task fmt:check
