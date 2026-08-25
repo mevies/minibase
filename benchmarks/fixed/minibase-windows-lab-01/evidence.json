@@ -3,8 +3,8 @@
   "schemaVersion": 3,
   "runnerId": "minibase-windows-lab-01",
   "hardwareFingerprint": "462f93fae9a13eb665edced36888eacdf83a2e6584f39522b0c8f19bd5e35511",
-  "sourceCommit": "e161241ca8bb0d0f1d452655a27cd5a4dd72dc8b",
-  "evaluatedAt": "2026-08-25T16:40:13.858Z",
+  "sourceCommit": "0021b283b0c201591a28676daeef75e178cc5861",
+  "evaluatedAt": "2026-08-25T17:55:45.630Z",
   "budgets": {
     "embeddedWarmStartMs": 2000,
     "embeddedCrudHotP95Ms": 10,
@@ -14,42 +14,42 @@
   "files": [
     {
       "path": "baseline/manifest.json",
-      "sha256": "ff7c9f08f88971219e5dc63d5cd1b00a2a4bd3f2495f4f93d1fb3f18a3e7c489",
+      "sha256": "efce8f105076f13043ff13dd4ca0618fa6c7a0854cd472f89d3cfc7939db132d",
       "bytes": 582
     },
     {
       "path": "baseline/pglite.json",
-      "sha256": "a4f8481479261945499557e62b386e9045adf1a487f1509d1ed4c393a00f9208",
-      "bytes": 17853
+      "sha256": "6dd56b64aec08017b4da9f77e5182042f484d47a54deaa55b092e3cadd41d3ef",
+      "bytes": 17913
     },
     {
       "path": "baseline/postgres.json",
-      "sha256": "d1fae45ac2e7e8e24ff436d8b0b17b100fa7f7b30e86b6d7c470ff65d8b1d502",
-      "bytes": 30798
+      "sha256": "288ba2b36a6a7ada7156a087da07de8433e402f9b1d53a4bf8685430423aacb8",
+      "bytes": 30803
     },
     {
       "path": "current/pglite.json",
-      "sha256": "a4f8481479261945499557e62b386e9045adf1a487f1509d1ed4c393a00f9208",
-      "bytes": 17853
+      "sha256": "6dd56b64aec08017b4da9f77e5182042f484d47a54deaa55b092e3cadd41d3ef",
+      "bytes": 17913
     },
     {
       "path": "current/postgres.json",
-      "sha256": "d1fae45ac2e7e8e24ff436d8b0b17b100fa7f7b30e86b6d7c470ff65d8b1d502",
-      "bytes": 30798
+      "sha256": "288ba2b36a6a7ada7156a087da07de8433e402f9b1d53a4bf8685430423aacb8",
+      "bytes": 30803
     },
     {
       "path": "gate-bootstrap.json",
-      "sha256": "32c7b315d28f001477b77a622f5058f4f32aad7e5b5d455ee5e353394ff3760f",
+      "sha256": "da3176601c50eb600137e8d9c934550b4e63c0de7406d5f6e1972ed3c35c2eed",
       "bytes": 446
     },
     {
       "path": "gate-current.json",
-      "sha256": "68e565509a5592a96fc4f4fe02bc3ffc1c3989280930b5c9f5a7c9d1e161bf6d",
+      "sha256": "7806c963b6874f51226c02c71ac7f0ced696719e16abfd87aebbbe88ac4ebea0",
       "bytes": 723
     },
     {
       "path": "history.jsonl",
-      "sha256": "a0f239109a364dc62aede323f30201b82e5a715aee192083f3884b1f20dc6dda",
+      "sha256": "a22c6f11ddb42332646838ac72a22ccc6ac9875f9976f277dcef1f836f0b22c5",
       "bytes": 976
     }
   ]

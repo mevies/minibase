@@ -3,7 +3,7 @@
   "compared": false,
   "runnerId": "minibase-windows-lab-01",
   "hardwareFingerprint": "462f93fae9a13eb665edced36888eacdf83a2e6584f39522b0c8f19bd5e35511",
-  "currentCommit": "e161241ca8bb0d0f1d452655a27cd5a4dd72dc8b",
+  "currentCommit": "0021b283b0c201591a28676daeef75e178cc5861",
   "baselineCommit": null,
   "comparisons": [],
   "regressions": [],
@@ -11,5 +11,5 @@
   "promoted": true,
   "bootstrapped": true,
   "acceptedRegressions": false,
-  "evaluatedAt": "2026-08-25T16:39:49.723Z"
+  "evaluatedAt": "2026-08-25T17:55:45.518Z"
 }

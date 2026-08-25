@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "kind": "minibase-supabase-docker-comparison",
-  "generatedAt": "2026-08-05T17:14:53.250Z",
-  "sourceCommit": "751250a5876ba336d972421bab3f419952184b52",
+  "generatedAt": "2026-08-25T17:56:18.219Z",
+  "sourceCommit": "0021b283b0c201591a28676daeef75e178cc5861",
   "runnerId": "minibase-windows-lab-01",
   "hardwareFingerprint": "462f93fae9a13eb665edced36888eacdf83a2e6584f39522b0c8f19bd5e35511",
   "thresholdRatio": 0.7,
@@ -11,55 +11,55 @@
   "passed": true,
   "metrics": {
     "warmStartup": {
-      "minibase": 1008.464,
-      "supabase": 24545.29,
-      "ratio": 0.0411,
-      "improvementPercent": 95.8914,
+      "minibase": 872.078,
+      "supabase": 23569.016,
+      "ratio": 0.037,
+      "improvementPercent": 96.2999,
       "significant": true
     },
     "idleMemory": {
-      "minibase": 300638208,
-      "supabase": 488853472,
-      "ratio": 0.615,
-      "improvementPercent": 38.5014,
+      "minibase": 305713152,
+      "supabase": 490204037,
+      "ratio": 0.6236,
+      "improvementPercent": 37.6355,
       "significant": true
     },
     "simpleRequestP95Median": {
-      "minibase": 3.7615,
-      "supabase": 1.808,
-      "ratio": 2.0805,
-      "improvementPercent": -108.0476,
+      "minibase": 3.726,
+      "supabase": 2.852,
+      "ratio": 1.3065,
+      "improvementPercent": -30.6452,
       "significant": false,
       "workloads": [
         {
           "name": "crudInsert",
-          "minibaseP95Ms": 3.945,
-          "supabaseP95Ms": 2.248
+          "minibaseP95Ms": 4.154,
+          "supabaseP95Ms": 3.745
         },
         {
           "name": "crudSelectSingle",
-          "minibaseP95Ms": 3.436,
-          "supabaseP95Ms": 1.594
+          "minibaseP95Ms": 3.5,
+          "supabaseP95Ms": 1.956
         },
         {
           "name": "crudSelectList",
-          "minibaseP95Ms": 3.522,
-          "supabaseP95Ms": 1.634
+          "minibaseP95Ms": 3.668,
+          "supabaseP95Ms": 1.959
         },
         {
           "name": "crudUpdate",
-          "minibaseP95Ms": 3.928,
-          "supabaseP95Ms": 2.891
+          "minibaseP95Ms": 3.784,
+          "supabaseP95Ms": 3.847
         },
         {
           "name": "crudDelete",
-          "minibaseP95Ms": 3.595,
-          "supabaseP95Ms": 1.982
+          "minibaseP95Ms": 3.413,
+          "supabaseP95Ms": 4.389
         },
         {
           "name": "rlsSelect",
-          "minibaseP95Ms": 4.712,
-          "supabaseP95Ms": 1.595
+          "minibaseP95Ms": 4.653,
+          "supabaseP95Ms": 1.693
         }
       ]
     }
