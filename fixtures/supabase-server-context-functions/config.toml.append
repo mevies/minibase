@@ -1,0 +1,14 @@
+[functions.context-user]
+verify_jwt = true
+
+[functions.context-target]
+verify_jwt = true
+
+[functions.context-none]
+verify_jwt = false
+
+[functions.context-named]
+verify_jwt = false
+
+[functions.context-invalid-fallback]
+verify_jwt = false

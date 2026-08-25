@@ -1,0 +1,7 @@
+project_id = "minibase-compat-basic"
+
+[api]
+port = 54321
+
+[functions.echo]
+verify_jwt = true

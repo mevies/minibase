@@ -1,0 +1,170 @@
+name: Fixed benchmark
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - deno.json
+      - deno.lock
+      - toolchain.json
+      - scripts/check_versions.ts
+      - .github/workflows/fixed-benchmark.yml
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      promote_baseline:
+        description: Promote this successful run as the next historical baseline
+        required: false
+        type: boolean
+        default: false
+      accept_regressions:
+        description: Explicitly accept detected regressions while promoting
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: minibase-fixed-benchmark
+  cancel-in-progress: false
+
+jobs:
+  benchmark:
+    name: Windows x64 fixed runner
+    runs-on: [self-hosted, Windows, X64, minibase-benchmark]
+    timeout-minutes: 90
+    env:
+      DENO_NO_UPDATE_CHECK: "1"
+      MINIBASE_BENCHMARK_RUNNER: ${{ vars.MINIBASE_BENCHMARK_RUNNER }}
+      MINIBASE_POSTGRES_RUNTIME_DIR: ${{ vars.MINIBASE_POSTGRES_RUNTIME_DIR }}
+      BENCHMARK_CURRENT_DIR: .benchmarks/local/current
+      BENCHMARK_STATE_DIR: .benchmarks/local/state
+
+    steps:
+      - name: Checkout audited commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          clean: true
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Normalize Windows checkout
+        shell: powershell
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP "minibase-checkout-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT.tar"
+          git archive --format=tar --output=$archive HEAD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          tar -xf $archive -C $env:GITHUB_WORKSPACE
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git add --all
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ((git status --porcelain).Length -ne 0) {
+            throw 'Normalized checkout must match the audited commit exactly.'
+          }
+
+      - name: Verify fixed runner
+        shell: powershell
+        run: |
+          if ($env:MINIBASE_BENCHMARK_RUNNER -notmatch '^[A-Za-z0-9._-]{1,64}$') {
+            throw 'MINIBASE_BENCHMARK_RUNNER must be a stable 1-64 character identifier.'
+          }
+          if ([string]::IsNullOrWhiteSpace($env:MINIBASE_POSTGRES_RUNTIME_DIR)) {
+            throw 'MINIBASE_POSTGRES_RUNTIME_DIR repository variable is required.'
+          }
+          $postgres = Join-Path $env:MINIBASE_POSTGRES_RUNTIME_DIR 'bin\postgres.exe'
+          if (-not (Test-Path -LiteralPath $postgres -PathType Leaf)) {
+            throw "PostgreSQL 18.4 executable is missing: $postgres"
+          }
+          $runnerRoot = Split-Path -Parent (Split-Path -Parent $env:RUNNER_TEMP)
+          $listener = Join-Path $runnerRoot 'bin\Runner.Listener.exe'
+          if (-not (Test-Path -LiteralPath $listener -PathType Leaf)) {
+            throw "GitHub Actions Runner listener is missing: $listener"
+          }
+          $runnerVersion = (& $listener --version | Select-Object -First 1).Trim()
+          if ($runnerVersion -ne '2.335.1') {
+            throw "GitHub Actions Runner 2.335.1 is required; found $runnerVersion"
+          }
+          if ((deno --version | Select-Object -First 1) -notmatch '^deno 2\.9\.2 ') {
+            throw 'Deno 2.9.2 is required.'
+          }
+          if ((git status --porcelain).Length -ne 0) {
+            throw 'Benchmark checkout must be clean before restoring local benchmark state.'
+          }
+
+      - name: Verify commit before benchmarking
+        shell: powershell
+        run: |
+          deno task fmt:check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          deno task lint
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          deno task check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          deno task test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          deno task verify:baseline
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          deno task test:postgres
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Restore promoted baseline and trend
+        id: benchmark-state
+        uses: actions/cache/restore@2c8a9bd7457de244a408f35966fab2fb45fda9c8
+        with:
+          path: ${{ env.BENCHMARK_STATE_DIR }}
+          key: minibase-benchmark-v3-${{ env.MINIBASE_BENCHMARK_RUNNER }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            minibase-benchmark-v3-${{ env.MINIBASE_BENCHMARK_RUNNER }}-
+
+      - name: Run Embedded and Server benchmarks
+        id: benchmark-run
+        shell: powershell
+        run: |
+          deno task bench --output "$env:BENCHMARK_CURRENT_DIR/pglite.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          deno task bench:postgres --output "$env:BENCHMARK_CURRENT_DIR/postgres.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Compare and optionally promote
+        id: benchmark-gate
+        shell: powershell
+        run: |
+          $arguments = @(
+            '--current-dir', $env:BENCHMARK_CURRENT_DIR,
+            '--baseline-dir', "$env:BENCHMARK_STATE_DIR/baseline",
+            '--history', "$env:BENCHMARK_STATE_DIR/history.jsonl",
+            '--output', '.benchmarks/local/gate-result.json'
+          )
+          if ('${{ inputs.promote_baseline }}' -eq 'true') {
+            $arguments += '--promote'
+          }
+          if ('${{ inputs.accept_regressions }}' -eq 'true') {
+            $arguments += '--accept-regressions'
+          }
+          deno task bench:gate @arguments
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Save promoted baseline and trend
+        if: ${{ success() }}
+        uses: actions/cache/save@2c8a9bd7457de244a408f35966fab2fb45fda9c8
+        with:
+          path: ${{ env.BENCHMARK_STATE_DIR }}
+          key: minibase-benchmark-v3-${{ env.MINIBASE_BENCHMARK_RUNNER }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Upload raw benchmark evidence
+        if: ${{ always() && steps.benchmark-run.outcome == 'success' }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        with:
+          name: benchmark-${{ env.MINIBASE_BENCHMARK_RUNNER }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.BENCHMARK_CURRENT_DIR }}
+            .benchmarks/local/gate-result.json
+            ${{ env.BENCHMARK_STATE_DIR }}/history.jsonl
+            ${{ env.BENCHMARK_STATE_DIR }}/baseline
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 90

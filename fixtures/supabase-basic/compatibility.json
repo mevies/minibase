@@ -1,0 +1,223 @@
+{
+  "formatVersion": 2,
+  "projectId": "minibase-compat-basic",
+  "verifiedWith": {
+    "supabaseCli": {
+      "version": "2.110.0",
+      "verifiedAt": "2026-08-05",
+      "platform": "windows-x64",
+      "archiveSha256": "b5b617c2b4810df0c23d79eacae8e0715e40ae6406ae5d9fc7706f0353ea5ed4",
+      "archiveBytes": 75623772,
+      "archiveUpdatedAt": "2026-07-27T17:00:22Z",
+      "commands": [
+        "supabase init --workdir <temp> --yes",
+        "supabase migration new compatibility_probe",
+        "supabase functions new compatibility-probe --yes"
+      ],
+      "functionTemplate": {
+        "fixture": "fixtures/supabase-cli-2.110.0-function/supabase/functions/compatibility-probe",
+        "entrypointSha256": "08f5278934563a684fe2b3b929cb412e849f24f539deb0bf64c6e85bd586e6c9",
+        "denoConfigSha256": "a9a29da36c2576f755dd868b9f553a02afdf7d7bccf52e97e65c7f68cf36bfef",
+        "runtimeProbe": {
+          "verifiedAt": "2026-08-05",
+          "supabaseServer": "1.4.1",
+          "status": 200,
+          "response": {
+            "message": "Hello Functions!"
+          }
+        }
+      }
+    },
+    "supabaseJs": {
+      "version": "2.110.9"
+    },
+    "supabaseServer": {
+      "version": "1.4.1",
+      "verifiedAt": "2026-08-05",
+      "hosts": [
+        "controlled-test-server",
+        "isolated-function-worker",
+        "embedded-release",
+        "server-release"
+      ],
+      "engines": [
+        "pglite",
+        "postgres"
+      ],
+      "supported": [
+        "auth.user",
+        "auth.none",
+        "context.user-claims",
+        "context.auth-get-user",
+        "context.rls-client",
+        "context.admin-rest",
+        "context.admin-storage",
+        "context.admin-functions-invoke",
+        "key.default",
+        "worker.isolated",
+        "worker.release-smoke"
+      ],
+      "unsupported": [
+        "key.named"
+      ]
+    }
+  },
+  "projectLayout": {
+    "id": "supabase-cli-2.110.0",
+    "config": "supabase/config.toml",
+    "migrations": "supabase/migrations/*.sql",
+    "seed": "supabase/seed.sql",
+    "functionDirectory": "supabase/functions/<name>",
+    "functionEntrypoint": "supabase/functions/<name>/index.ts",
+    "functionDenoConfig": "supabase/functions/<name>/deno.json",
+    "functionConfigFields": [
+      "functions.<name>.verify_jwt",
+      "functions.<name>.entrypoint",
+      "functions.<name>.import_map"
+    ]
+  },
+  "inputs": {
+    "migrations": [
+      {
+        "version": "20260803000100",
+        "file": "supabase/migrations/20260803000100_create_profiles.sql"
+      },
+      {
+        "version": "20260803000200",
+        "file": "supabase/migrations/20260803000200_create_notes.sql"
+      },
+      {
+        "version": "20260803000300",
+        "file": "supabase/migrations/20260803000300_storage_policies.sql"
+      }
+    ],
+    "seed": "supabase/seed.sql",
+    "functions": [
+      {
+        "name": "echo",
+        "entrypoint": "supabase/functions/echo/index.ts",
+        "route": "/functions/v1/echo",
+        "verifyJwt": true
+      },
+      {
+        "name": "fetch-openai",
+        "entrypoint": "supabase/functions/fetch-openai/index.ts",
+        "route": "/functions/v1/fetch-openai",
+        "verifyJwt": true
+      }
+    ]
+  },
+  "expectations": {
+    "profiles": [
+      {
+        "id": "11111111-1111-4111-8111-111111111111",
+        "displayName": "Alice"
+      },
+      {
+        "id": "22222222-2222-4222-8222-222222222222",
+        "displayName": "Bob"
+      }
+    ],
+    "notesByUser": {
+      "11111111-1111-4111-8111-111111111111": [
+        "Alice note"
+      ],
+      "22222222-2222-4222-8222-222222222222": [
+        "Bob note"
+      ]
+    },
+    "storagePolicies": [
+      "Users can upload own avatars",
+      "Users can read own avatars",
+      "Users can delete own avatars"
+    ]
+  },
+  "engines": {
+    "pglite": {
+      "supported": [
+        "postgresql-sql",
+        "jsonb",
+        "plpgsql-trigger",
+        "row-level-security",
+        "storage-policy",
+        "deno-serve-function",
+        "supabase-cli-default-export-function"
+      ],
+      "unsupported": [
+        {
+          "capability": "extension.pgcrypto",
+          "reason": "The pinned PGlite distribution does not expose pgcrypto."
+        },
+        {
+          "capability": "extension.uuid-ossp",
+          "reason": "The pinned PGlite distribution does not expose uuid-ossp."
+        },
+        {
+          "capability": "extension.postgis",
+          "reason": "The pinned PGlite distribution does not bundle PostGIS."
+        },
+        {
+          "capability": "logical-replication",
+          "reason": "Embedded mode does not expose PostgreSQL replication connections."
+        }
+      ]
+    },
+    "postgres": {
+      "supported": [
+        "postgresql-sql",
+        "jsonb",
+        "plpgsql-trigger",
+        "row-level-security",
+        "storage-policy",
+        "deno-serve-function",
+        "supabase-cli-default-export-function",
+        "extension.pgcrypto",
+        "extension.uuid-ossp",
+        "logical-replication-configuration"
+      ],
+      "unsupported": []
+    }
+  },
+  "modules": [
+    {
+      "id": "migrations",
+      "label": "Migration / Seed",
+      "overall": "supported",
+      "embedded": "partial",
+      "server": "supported",
+      "summary": "按时间戳顺序执行 SQL migration 和 seed.sql；PGlite 受 Extension 与复制能力限制。"
+    },
+    {
+      "id": "auth",
+      "label": "Auth",
+      "overall": "partial",
+      "embedded": "partial",
+      "server": "partial",
+      "summary": "支持邮箱密码、匿名用户、Session、Refresh Token、用户更新和基础 Admin；不含 OAuth、MFA、SAML。"
+    },
+    {
+      "id": "rest",
+      "label": "REST",
+      "overall": "partial",
+      "embedded": "partial",
+      "server": "partial",
+      "summary": "支持常用 CRUD、过滤、分页、关系选择、upsert、精确计数和 RLS；不是完整 PostgREST。"
+    },
+    {
+      "id": "storage",
+      "label": "Storage",
+      "overall": "partial",
+      "embedded": "partial",
+      "server": "partial",
+      "summary": "本地与 S3-compatible 后端支持常用 supabase-js API；真实云厂商认证属于可选后续验证。"
+    },
+    {
+      "id": "functions",
+      "label": "Edge Functions",
+      "overall": "partial",
+      "embedded": "partial",
+      "server": "partial",
+      "summary": "支持 Deno.serve、CLI 默认导出、真实 Context 双引擎子集、远程入站和受控出站 fetch。"
+    }
+  ]
+}

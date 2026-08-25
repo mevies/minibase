@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "kind": "minibase-supabase-docker-comparison",
+  "generatedAt": "2026-08-05T17:14:53.250Z",
+  "sourceCommit": "751250a5876ba336d972421bab3f419952184b52",
+  "runnerId": "minibase-windows-lab-01",
+  "hardwareFingerprint": "462f93fae9a13eb665edced36888eacdf83a2e6584f39522b0c8f19bd5e35511",
+  "thresholdRatio": 0.7,
+  "requiredAdvantages": 2,
+  "significantAdvantages": 2,
+  "passed": true,
+  "metrics": {
+    "warmStartup": {
+      "minibase": 1008.464,
+      "supabase": 24545.29,
+      "ratio": 0.0411,
+      "improvementPercent": 95.8914,
+      "significant": true
+    },
+    "idleMemory": {
+      "minibase": 300638208,
+      "supabase": 488853472,
+      "ratio": 0.615,
+      "improvementPercent": 38.5014,
+      "significant": true
+    },
+    "simpleRequestP95Median": {
+      "minibase": 3.7615,
+      "supabase": 1.808,
+      "ratio": 2.0805,
+      "improvementPercent": -108.0476,
+      "significant": false,
+      "workloads": [
+        {
+          "name": "crudInsert",
+          "minibaseP95Ms": 3.945,
+          "supabaseP95Ms": 2.248
+        },
+        {
+          "name": "crudSelectSingle",
+          "minibaseP95Ms": 3.436,
+          "supabaseP95Ms": 1.594
+        },
+        {
+          "name": "crudSelectList",
+          "minibaseP95Ms": 3.522,
+          "supabaseP95Ms": 1.634
+        },
+        {
+          "name": "crudUpdate",
+          "minibaseP95Ms": 3.928,
+          "supabaseP95Ms": 2.891
+        },
+        {
+          "name": "crudDelete",
+          "minibaseP95Ms": 3.595,
+          "supabaseP95Ms": 1.982
+        },
+        {
+          "name": "rlsSelect",
+          "minibaseP95Ms": 4.712,
+          "supabaseP95Ms": 1.595
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,8 @@
+self-hosted-runner:
+  labels:
+    - minibase-benchmark
+
+config-variables:
+  - MINIBASE_BENCHMARK_RUNNER
+  - MINIBASE_POSTGRES_RUNTIME_DIR
+  - MINIBASE_S3_EVIDENCE_RUNNER

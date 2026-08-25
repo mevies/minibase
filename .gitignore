@@ -1,0 +1,21 @@
+.idea/
+.minibase/
+coverage/
+dist/
+release/assets/*.gz
+release/assets/*.js
+release/assets/*.json
+*.log
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Temporary benchmark and probe output
+.benchmarks/local/
+.benchmarks/soak/
+.benchmarks/tooling/
+.evidence/local/
+.wrangler/
+.scratch-*/

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "runnerId": "minibase-windows-lab-01",
+  "sourceCommit": "751250a5876ba336d972421bab3f419952184b52",
+  "hardwareFingerprint": "462f93fae9a13eb665edced36888eacdf83a2e6584f39522b0c8f19bd5e35511",
+  "createdAt": "2026-08-05T17:14:53.255Z",
+  "files": {
+    "minibase.json": "8e4f3bc2e14b2dc0b05905df7def7ae3eda204ccfacaf72e864a54278923fef3",
+    "supabase.json": "348fca0dde36ebcfa2d5708fd8e16b5564ff86a75b4c8b95b4d1380e6f328abd",
+    "comparison.json": "92ed33d94d127f7a749ce70a1f0295ba76d97d09f352465ec16609c30af743b7"
+  }
+}

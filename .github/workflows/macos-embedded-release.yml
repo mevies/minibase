@@ -1,0 +1,130 @@
+name: macOS Embedded release smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: minibase-macos-embedded-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  embedded:
+    name: Embedded ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-x64
+            runner: macos-15-intel
+            expected_arch: x86_64
+            expected_deno_arch: x86_64
+            deno_asset: deno-x86_64-apple-darwin.zip
+            deno_archive_bytes: 42336919
+            deno_archive_sha256: c953379e5a85a0a30e99aa51b807633e380e809a1181f53e4904d5fa73785bff
+            deno_executable_sha256: 201651c6e72bd0df2dbe994b4f8ca0f935631e08c27290a3a92342e02ad0e865
+          - platform: macos-arm64
+            runner: macos-15
+            expected_arch: arm64
+            expected_deno_arch: aarch64
+            deno_asset: deno-aarch64-apple-darwin.zip
+            deno_archive_bytes: 37981362
+            deno_archive_sha256: 687ae485168ba73a4f1ee3a954eb4f077eca82f2fefd236a6a83a3889287876c
+            deno_executable_sha256: 218ab752ae8f64f0a7822af710886488f15169fdae153a3aada4861f9635b266
+    env:
+      DENO_NO_UPDATE_CHECK: "1"
+      DENO_VERSION: "2.9.2"
+
+    steps:
+      - name: Checkout audited commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          clean: true
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install fixed Deno Runtime
+        shell: bash
+        env:
+          DENO_ASSET: ${{ matrix.deno_asset }}
+          DENO_ARCHIVE_BYTES: ${{ matrix.deno_archive_bytes }}
+          DENO_ARCHIVE_SHA256: ${{ matrix.deno_archive_sha256 }}
+          DENO_EXECUTABLE_SHA256: ${{ matrix.deno_executable_sha256 }}
+        run: |
+          set -euo pipefail
+          runtime_dir="$RUNNER_TEMP/deno-$DENO_VERSION"
+          archive="$RUNNER_TEMP/$DENO_ASSET"
+          curl --fail --location --proto '=https' --tlsv1.2 \
+            --output "$archive" \
+            "https://github.com/denoland/deno/releases/download/v$DENO_VERSION/$DENO_ASSET"
+          test "$(stat -f '%z' "$archive")" = "$DENO_ARCHIVE_BYTES"
+          echo "$DENO_ARCHIVE_SHA256  $archive" | shasum -a 256 --check
+          mkdir -p "$runtime_dir"
+          ditto -x -k "$archive" "$runtime_dir"
+          chmod 0755 "$runtime_dir/deno"
+          echo "$DENO_EXECUTABLE_SHA256  $runtime_dir/deno" | shasum -a 256 --check
+          echo "$runtime_dir" >> "$GITHUB_PATH"
+
+      - name: Verify host and repository inputs
+        shell: bash
+        env:
+          EXPECTED_ARCH: ${{ matrix.expected_arch }}
+          EXPECTED_DENO_ARCH: ${{ matrix.expected_deno_arch }}
+          DENO_EXECUTABLE_SHA256: ${{ matrix.deno_executable_sha256 }}
+        run: |
+          set -euo pipefail
+          test "$(uname -s)" = "Darwin"
+          test "$(uname -m)" = "$EXPECTED_ARCH"
+          test "$(deno --version | head -n 1)" = "deno $DENO_VERSION (stable, release, $EXPECTED_DENO_ARCH-apple-darwin)"
+          echo "$DENO_EXECUTABLE_SHA256  $(command -v deno)" | shasum -a 256 --check
+          test -z "$(git status --porcelain)"
+          deno install --frozen=true
+          deno task check
+
+      - name: Build and smoke Embedded release
+        shell: bash
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          mkdir -p .evidence/local
+          deno task "release:smoke:embedded:$PLATFORM" \
+            | tee ".evidence/local/$PLATFORM-smoke.jsonl"
+
+      - name: Record hosted-runner evidence
+        if: ${{ always() }}
+        shell: bash
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          EXPECTED_ARCH: ${{ matrix.expected_arch }}
+          RUNNER_LABEL: ${{ matrix.runner }}
+        run: |
+          set -euo pipefail
+          mkdir -p .evidence/local
+          deno run \
+            --allow-env \
+            --allow-read \
+            --allow-run=git,sw_vers,uname \
+            --allow-write=.evidence/local \
+            scripts/record_macos_runner_evidence.ts \
+            --platform "$PLATFORM" \
+            --runner-label "$RUNNER_LABEL" \
+            --expected-arch "$EXPECTED_ARCH" \
+            --output ".evidence/local/$PLATFORM-runner.json"
+
+      - name: Upload release and evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        with:
+          name: embedded-${{ matrix.platform }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            dist/${{ matrix.platform }}/embedded
+            .evidence/local/${{ matrix.platform }}-smoke.jsonl
+            .evidence/local/${{ matrix.platform }}-runner.json
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 30

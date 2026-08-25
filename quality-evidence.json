@@ -1,0 +1,306 @@
+{
+  "formatVersion": 1,
+  "entries": [
+    {
+      "id": "auth-security-contract",
+      "kind": "test",
+      "file": "tests/auth_security_test.ts",
+      "name": "Auth password, reauthentication, audit and protected-field contract on PGlite",
+      "markers": [
+        "assertAuthSecurityContract",
+        "Auth endpoint limits isolate routes, client IPs and authenticated identities"
+      ],
+      "targets": [
+        "security.auth-password-and-reauthentication",
+        "security.auth-rate-limits"
+      ]
+    },
+    {
+      "id": "secret-file-permissions",
+      "kind": "test",
+      "file": "tests/auth_keys_test.ts",
+      "name": "Auth secrets reject links and enforce private platform permissions",
+      "markers": [
+        "unauthorizedWindowsAclSids",
+        "Auth secrets file must not be a symbolic link"
+      ],
+      "targets": [
+        "security.secret-file-permissions"
+      ]
+    },
+    {
+      "id": "secret-output-redaction",
+      "kind": "test",
+      "file": "tests/secret_output_test.ts",
+      "name": "CLI, server and backend failures do not log database, Auth or S3 credentials",
+      "markers": [
+        "database-password-never-appear-in-output",
+        "s3-session-never-appear-in-output"
+      ],
+      "targets": [
+        "security.secret-redaction"
+      ]
+    },
+    {
+      "id": "request-resource-guards",
+      "kind": "test",
+      "file": "tests/request_guard_test.ts",
+      "name": "request guard aborts timed out handlers and releases their slot",
+      "markers": [
+        "request guard rejects declared and streamed bodies beyond the limit",
+        "request timeouts cancel ambient database queries"
+      ],
+      "targets": [
+        "security.request-limits-and-timeouts"
+      ]
+    },
+    {
+      "id": "function-network-policy",
+      "kind": "test",
+      "file": "tests/functions_network_policy_test.ts",
+      "name": "Function network policies enforce wildcards, stricter overrides and self access",
+      "markers": [
+        "private-network SSRF policy",
+        "SUPABASE_URL access is disabled"
+      ],
+      "targets": [
+        "security.functions-network-policy"
+      ]
+    },
+    {
+      "id": "migration-crash-recovery",
+      "kind": "test",
+      "file": "tests/migration_recovery_test.ts",
+      "name": "a killed transactional migration is identified and safely retried",
+      "markers": [
+        "first.kill(\"SIGKILL\")",
+        "assertEquals(attempt?.state, \"applied\")"
+      ],
+      "targets": [
+        "recovery.migration-crash"
+      ]
+    },
+    {
+      "id": "local-storage-crash-recovery",
+      "kind": "test",
+      "file": "tests/storage_recovery_test.ts",
+      "name": "Minibase startup recovers local Storage crashes on both sides of database commit",
+      "markers": [
+        "crashDuringWrite",
+        "assertRecoveryEvent"
+      ],
+      "targets": [
+        "recovery.storage-crash"
+      ]
+    },
+    {
+      "id": "storage-capacity-failure",
+      "kind": "test",
+      "file": "tests/storage_test.ts",
+      "name": "local capacity failures return 507 and remove partial temporary files",
+      "markers": [
+        "StorageCapacityExceeded",
+        "assertEquals(await store.list(), [])"
+      ],
+      "targets": [
+        "recovery.capacity-failure"
+      ]
+    },
+    {
+      "id": "corrupt-database-diagnosis",
+      "kind": "test",
+      "file": "tests/doctor_test.ts",
+      "name": "doctor reports corrupted database control data without modifying the directory",
+      "markers": [
+        "database.integrity.corrupt",
+        "assertEquals(await directoryFingerprint(project.pgliteDataDir), before)"
+      ],
+      "targets": [
+        "recovery.corrupt-database-readonly"
+      ]
+    },
+    {
+      "id": "fixed-benchmark-gate",
+      "kind": "task",
+      "file": "scripts/check_benchmark_evidence.ts",
+      "task": "benchmark:evidence:check",
+      "requiredInCheck": true,
+      "markers": [
+        "assertPerformanceBudgets",
+        "Committed benchmark comparison did not pass"
+      ],
+      "targets": [
+        "performance.fixed-benchmark"
+      ]
+    },
+    {
+      "id": "dual-engine-soak-gate",
+      "kind": "task",
+      "file": "scripts/check_soak_evidence.ts",
+      "task": "soak:evidence:check",
+      "requiredInCheck": true,
+      "markers": [
+        "validateSoakEvidenceDirectory",
+        "pgliteDurationMs"
+      ],
+      "targets": [
+        "performance.dual-engine-soak"
+      ]
+    },
+    {
+      "id": "supabase-docker-comparison",
+      "kind": "task",
+      "file": "scripts/check_supabase_evidence.ts",
+      "task": "bench:supabase:evidence:check",
+      "requiredInCheck": true,
+      "markers": [
+        "verifySupabaseEvidenceRoot",
+        "significantAdvantages"
+      ],
+      "targets": [
+        "performance.supabase-docker-comparison"
+      ]
+    },
+    {
+      "id": "logical-backup-cli",
+      "kind": "test",
+      "file": "tests/backup_cli_test.ts",
+      "name": "CLI exports and force-restores a logical backup without overwriting silently",
+      "markers": [
+        "backupDir",
+        "CLI backup note"
+      ],
+      "targets": [
+        "backup.logical-cli"
+      ]
+    },
+    {
+      "id": "cross-engine-backup",
+      "kind": "test",
+      "file": "tests/backup_cross_engine_test.ts",
+      "name": "PGlite backup restores into PostgreSQL with Auth, RLS, Storage and Functions",
+      "markers": [
+        "targetEngine, \"postgres\"",
+        "new Request(\"http://localhost/functions/v1/echo\""
+      ],
+      "supporting": [
+        {
+          "file": "deno.json",
+          "markers": [
+            "tests/backup_cross_engine_test.ts"
+          ]
+        }
+      ],
+      "targets": [
+        "backup.cross-engine"
+      ]
+    },
+    {
+      "id": "s3-backup-streaming",
+      "kind": "test",
+      "file": "tests/backup_s3_test.ts",
+      "name": "logical backups stream object bodies across S3 and local backends",
+      "markers": [
+        "restoreLogicalBackup(local.database.engine",
+        "objectStore: roundTripStore"
+      ],
+      "targets": [
+        "backup.s3-streaming"
+      ]
+    },
+    {
+      "id": "pglite-upgrade-rollback",
+      "kind": "test",
+      "file": "tests/upgrade_test.ts",
+      "name": "failed upgrade restores state, database, Storage and secrets from its backup",
+      "markers": [
+        "injected upgrade failure",
+        "assertEquals(backups.length, 1)"
+      ],
+      "targets": [
+        "upgrade.pglite-rollback"
+      ]
+    },
+    {
+      "id": "managed-postgres-upgrade",
+      "kind": "test",
+      "file": "tests/upgrade_postgres_test.ts",
+      "name": "managed PostgreSQL data-format upgrade preserves the real 18.4 cluster",
+      "markers": [
+        "server upgrade preserved",
+        "assertEquals(upgraded.databaseMajor, 18)"
+      ],
+      "supporting": [
+        {
+          "file": "deno.json",
+          "markers": [
+            "tests/upgrade_postgres_test.ts"
+          ]
+        }
+      ],
+      "targets": [
+        "upgrade.managed-postgres"
+      ]
+    },
+    {
+      "id": "external-postgres-readonly-upgrade",
+      "kind": "test",
+      "file": "tests/upgrade_postgres_test.ts",
+      "name": "external PostgreSQL permits only the read-only project-state upgrade",
+      "markers": [
+        "database: \"read-only\"",
+        "external upgrade preserved"
+      ],
+      "targets": [
+        "upgrade.external-postgres-readonly"
+      ]
+    },
+    {
+      "id": "managed-postgres-s3-upgrade-rollback",
+      "kind": "test",
+      "file": "tests/upgrade_postgres_test.ts",
+      "name": "managed PostgreSQL Storage-mutating upgrade restores its S3 snapshot on failure",
+      "markers": [
+        "injected managed PostgreSQL S3 upgrade failure",
+        "assertEquals(fixture.snapshot(), before)"
+      ],
+      "targets": [
+        "upgrade.s3-rollback"
+      ]
+    },
+    {
+      "id": "pglite-s3-reset-rollback",
+      "kind": "test",
+      "file": "tests/reset_s3_test.ts",
+      "name": "a partial S3 clear failure restores remote keys and the original database",
+      "markers": [
+        "fixture.snapshot()",
+        "original database"
+      ],
+      "targets": [
+        "recovery.s3-reset"
+      ]
+    },
+    {
+      "id": "managed-postgres-s3-reset-rollback",
+      "kind": "test",
+      "file": "tests/reset_s3_postgres_test.ts",
+      "name": "managed PostgreSQL S3 reset rebuilds successfully and rolls back a later failure",
+      "markers": [
+        "restored after server failure",
+        "assertEquals(fixture.snapshot(), beforeFailure)"
+      ],
+      "supporting": [
+        {
+          "file": "deno.json",
+          "markers": [
+            "tests/reset_s3_postgres_test.ts"
+          ]
+        }
+      ],
+      "targets": [
+        "recovery.managed-postgres-s3-reset"
+      ]
+    }
+  ]
+}

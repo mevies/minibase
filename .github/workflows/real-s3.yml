@@ -1,0 +1,133 @@
+name: Real S3 evidence
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: minibase-real-s3-evidence
+  cancel-in-progress: false
+
+jobs:
+  real-s3:
+    name: AWS S3 and Cloudflare R2
+    runs-on: [self-hosted, Windows, X64, minibase-benchmark]
+    environment: real-s3-evidence
+    timeout-minutes: 30
+    env:
+      DENO_NO_UPDATE_CHECK: "1"
+      MINIBASE_S3_EVIDENCE_RUNNER: ${{ vars.MINIBASE_S3_EVIDENCE_RUNNER }}
+      MINIBASE_REAL_S3_AWS_ENDPOINT: ${{ secrets.MINIBASE_REAL_S3_AWS_ENDPOINT }}
+      MINIBASE_REAL_S3_AWS_REGION: ${{ secrets.MINIBASE_REAL_S3_AWS_REGION }}
+      MINIBASE_REAL_S3_AWS_BUCKET: ${{ secrets.MINIBASE_REAL_S3_AWS_BUCKET }}
+      MINIBASE_REAL_S3_AWS_ACCESS_KEY_ID: ${{ secrets.MINIBASE_REAL_S3_AWS_ACCESS_KEY_ID }}
+      MINIBASE_REAL_S3_AWS_SECRET_ACCESS_KEY: ${{ secrets.MINIBASE_REAL_S3_AWS_SECRET_ACCESS_KEY }}
+      MINIBASE_REAL_S3_AWS_SESSION_TOKEN: ${{ secrets.MINIBASE_REAL_S3_AWS_SESSION_TOKEN }}
+      MINIBASE_REAL_S3_AWS_PATH_STYLE: "false"
+      MINIBASE_REAL_S3_R2_ENDPOINT: ${{ secrets.MINIBASE_REAL_S3_R2_ENDPOINT }}
+      MINIBASE_REAL_S3_R2_REGION: "auto"
+      MINIBASE_REAL_S3_R2_BUCKET: ${{ secrets.MINIBASE_REAL_S3_R2_BUCKET }}
+      MINIBASE_REAL_S3_R2_ACCESS_KEY_ID: ${{ secrets.MINIBASE_REAL_S3_R2_ACCESS_KEY_ID }}
+      MINIBASE_REAL_S3_R2_SECRET_ACCESS_KEY: ${{ secrets.MINIBASE_REAL_S3_R2_SECRET_ACCESS_KEY }}
+      MINIBASE_REAL_S3_R2_PATH_STYLE: "true"
+
+    steps:
+      - name: Checkout audited commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          clean: true
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Normalize Windows checkout
+        shell: powershell
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP "minibase-checkout-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT.tar"
+          git archive --format=tar --output=$archive HEAD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          tar -xf $archive -C $env:GITHUB_WORKSPACE
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git add --all
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ((git status --porcelain).Length -ne 0) {
+            throw 'Normalized checkout must match the audited commit exactly.'
+          }
+
+      - name: Verify fixed runner and protected inputs
+        shell: powershell
+        run: |
+          if ($env:MINIBASE_S3_EVIDENCE_RUNNER -notmatch '^[A-Za-z0-9._-]{1,64}$') {
+            throw 'MINIBASE_S3_EVIDENCE_RUNNER must be a stable 1-64 character identifier.'
+          }
+          if ((deno --version | Select-Object -First 1) -notmatch '^deno 2\.9\.2 ') {
+            throw 'Deno 2.9.2 is required.'
+          }
+          if ((git status --porcelain).Length -ne 0) {
+            throw 'Real S3 evidence checkout must be clean.'
+          }
+          $required = @(
+            'MINIBASE_REAL_S3_AWS_ENDPOINT',
+            'MINIBASE_REAL_S3_AWS_REGION',
+            'MINIBASE_REAL_S3_AWS_BUCKET',
+            'MINIBASE_REAL_S3_AWS_ACCESS_KEY_ID',
+            'MINIBASE_REAL_S3_AWS_SECRET_ACCESS_KEY',
+            'MINIBASE_REAL_S3_R2_ENDPOINT',
+            'MINIBASE_REAL_S3_R2_BUCKET',
+            'MINIBASE_REAL_S3_R2_ACCESS_KEY_ID',
+            'MINIBASE_REAL_S3_R2_SECRET_ACCESS_KEY'
+          )
+          foreach ($name in $required) {
+            if ([string]::IsNullOrWhiteSpace((Get-Item "Env:$name").Value)) {
+              throw "$name is required by the protected real-s3-evidence environment."
+            }
+          }
+
+      - name: Verify commit before remote Storage mutation
+        shell: powershell
+        run: |
+          deno task fmt:check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          deno task lint
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          deno task check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          deno task test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          deno task verify:baseline
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Probe dedicated AWS S3 bucket
+        id: aws-probe
+        shell: powershell
+        run: |
+          deno task s3:real:probe --provider aws-s3 --output .evidence/local/aws-s3.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Probe dedicated Cloudflare R2 bucket
+        id: r2-probe
+        shell: powershell
+        run: |
+          deno task s3:real:probe --provider cloudflare-r2 --output .evidence/local/cloudflare-r2.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Pair and validate raw reports
+        if: ${{ success() }}
+        shell: powershell
+        run: |
+          deno task s3:evidence:promote `
+            --aws .evidence/local/aws-s3.json `
+            --r2 .evidence/local/cloudflare-r2.json `
+            --output-dir .evidence/local/pair
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload real S3 evidence
+        if: ${{ always() && (steps.aws-probe.outcome == 'success' || steps.r2-probe.outcome == 'success') }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        with:
+          name: real-s3-${{ env.MINIBASE_S3_EVIDENCE_RUNNER }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .evidence/local
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 30

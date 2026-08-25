@@ -1,0 +1,28 @@
+{
+  "gatePassed": true,
+  "compared": true,
+  "runnerId": "minibase-windows-lab-01",
+  "hardwareFingerprint": "462f93fae9a13eb665edced36888eacdf83a2e6584f39522b0c8f19bd5e35511",
+  "currentCommit": "1945e073aba09f9294da1d9fb79bca778e5eb74d",
+  "baselineCommit": "1945e073aba09f9294da1d9fb79bca778e5eb74d",
+  "comparisons": [
+    {
+      "engine": "pglite",
+      "comparable": true,
+      "regressions": [],
+      "checkedMetrics": 28
+    },
+    {
+      "engine": "postgres",
+      "comparable": true,
+      "regressions": [],
+      "checkedMetrics": 37
+    }
+  ],
+  "regressions": [],
+  "ok": true,
+  "promoted": false,
+  "bootstrapped": false,
+  "acceptedRegressions": false,
+  "evaluatedAt": "2026-08-05T12:15:37.202Z"
+}

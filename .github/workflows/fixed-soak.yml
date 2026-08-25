@@ -1,0 +1,123 @@
+name: Fixed soak
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - deno.json
+      - deno.lock
+      - toolchain.json
+      - src/**
+      - scripts/soak.ts
+      - scripts/soak_report.ts
+      - scripts/soak_evidence.ts
+      - scripts/check_soak_evidence.ts
+      - .github/workflows/fixed-soak.yml
+  schedule:
+    - cron: "43 2 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: minibase-fixed-soak
+  cancel-in-progress: false
+
+jobs:
+  soak:
+    name: Windows x64 dual-engine soak
+    runs-on: [self-hosted, Windows, X64, minibase-benchmark]
+    timeout-minutes: 120
+    env:
+      DENO_NO_UPDATE_CHECK: "1"
+      MINIBASE_SOAK_RUNNER: ${{ vars.MINIBASE_BENCHMARK_RUNNER }}
+      MINIBASE_POSTGRES_RUNTIME_DIR: ${{ vars.MINIBASE_POSTGRES_RUNTIME_DIR }}
+      SOAK_OUTPUT_DIR: .benchmarks/soak
+
+    steps:
+      - name: Checkout audited commit
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          clean: true
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Normalize Windows checkout
+        shell: powershell
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP "minibase-checkout-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT.tar"
+          git archive --format=tar --output=$archive HEAD
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          tar -xf $archive -C $env:GITHUB_WORKSPACE
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git add --all
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ((git status --porcelain).Length -ne 0) {
+            throw 'Normalized checkout must match the audited commit exactly.'
+          }
+
+      - name: Verify fixed runner
+        shell: powershell
+        run: |
+          if ($env:MINIBASE_SOAK_RUNNER -notmatch '^[A-Za-z0-9._-]{1,64}$') {
+            throw 'MINIBASE_SOAK_RUNNER must be a stable 1-64 character identifier.'
+          }
+          if ([string]::IsNullOrWhiteSpace($env:MINIBASE_POSTGRES_RUNTIME_DIR)) {
+            throw 'MINIBASE_POSTGRES_RUNTIME_DIR repository variable is required.'
+          }
+          $postgres = Join-Path $env:MINIBASE_POSTGRES_RUNTIME_DIR 'bin\postgres.exe'
+          if (-not (Test-Path -LiteralPath $postgres -PathType Leaf)) {
+            throw "PostgreSQL 18.4 executable is missing: $postgres"
+          }
+          $runnerRoot = Split-Path -Parent (Split-Path -Parent $env:RUNNER_TEMP)
+          $listener = Join-Path $runnerRoot 'bin\Runner.Listener.exe'
+          if (-not (Test-Path -LiteralPath $listener -PathType Leaf)) {
+            throw "GitHub Actions Runner listener is missing: $listener"
+          }
+          $runnerVersion = (& $listener --version | Select-Object -First 1).Trim()
+          if ($runnerVersion -ne '2.335.1') {
+            throw "GitHub Actions Runner 2.335.1 is required; found $runnerVersion"
+          }
+          if ((deno --version | Select-Object -First 1) -notmatch '^deno 2\.9\.2 ') {
+            throw 'Deno 2.9.2 is required.'
+          }
+          if ((git status --porcelain).Length -ne 0) {
+            throw 'Soak checkout must be clean.'
+          }
+
+      - name: Verify commit before soak
+        shell: powershell
+        run: |
+          deno task fmt:check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          deno task lint
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          deno task check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          deno task test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          deno task verify:baseline
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          deno task test:postgres
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Run 30-minute Embedded and Server soak gates
+        id: soak-run
+        shell: powershell
+        run: |
+          deno task soak:pglite --duration-seconds 1800 --output "$env:SOAK_OUTPUT_DIR/pglite.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          deno task soak:postgres --duration-seconds 1800 --output "$env:SOAK_OUTPUT_DIR/postgres.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload raw soak evidence
+        if: ${{ always() && steps.soak-run.outcome == 'success' }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f
+        with:
+          name: soak-${{ env.MINIBASE_SOAK_RUNNER }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ env.SOAK_OUTPUT_DIR }}
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 90

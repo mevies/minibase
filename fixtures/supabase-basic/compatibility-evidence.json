@@ -1,0 +1,317 @@
+{
+  "formatVersion": 1,
+  "entries": [
+    {
+      "id": "pglite-core-fixture",
+      "kind": "test",
+      "file": "tests/pglite_migrations_test.ts",
+      "name": "PGlite runs an unchanged Supabase migration and seed fixture",
+      "markers": [
+        "applyMigrations(engine, fixture)",
+        "applySeed(engine, fixture)",
+        "compatibility.expectations.storagePolicies",
+        "assertRequestContextContract(engine)"
+      ],
+      "targets": [
+        "engine.pglite.supported.postgresql-sql",
+        "engine.pglite.supported.jsonb",
+        "engine.pglite.supported.plpgsql-trigger",
+        "engine.pglite.supported.row-level-security",
+        "engine.pglite.supported.storage-policy",
+        "module.migrations.embedded.partial"
+      ]
+    },
+    {
+      "id": "postgres-core-fixture",
+      "kind": "test",
+      "file": "tests/postgres_engine_test.ts",
+      "name": "managed PostgreSQL 18.4 initializes, runs the shared fixture and recovers after a crash",
+      "markers": [
+        "applyMigrations(engine, project)",
+        "applySeed(engine, project)",
+        "compatibility.expectations.storagePolicies",
+        "create extension if not exists pgcrypto",
+        "uuid_generate_v4()",
+        "assertRequestContextContract(engine)"
+      ],
+      "targets": [
+        "engine.postgres.supported.postgresql-sql",
+        "engine.postgres.supported.jsonb",
+        "engine.postgres.supported.plpgsql-trigger",
+        "engine.postgres.supported.row-level-security",
+        "engine.postgres.supported.storage-policy",
+        "engine.postgres.supported.extension.pgcrypto",
+        "engine.postgres.supported.extension.uuid-ossp",
+        "module.migrations.server.supported"
+      ]
+    },
+    {
+      "id": "postgres-logical-replication-configuration",
+      "kind": "test",
+      "file": "tests/server_cli_test.ts",
+      "name": "Server CLI exposes the API without exposing PostgreSQL and survives managed reset",
+      "markers": [
+        "capabilities.logicalReplication, \"configurable\"",
+        "database.logical_replication.requires_configuration"
+      ],
+      "targets": [
+        "engine.postgres.supported.logical-replication-configuration"
+      ]
+    },
+    {
+      "id": "pglite-deno-serve",
+      "kind": "test",
+      "file": "tests/functions_test.ts",
+      "name": "Deno.serve function is loaded unchanged and reused",
+      "markers": [
+        "compatibility.inputs.functions.find",
+        "manager = new FunctionManager",
+        "body: JSON.stringify({ value })"
+      ],
+      "targets": [
+        "engine.pglite.supported.deno-serve-function"
+      ]
+    },
+    {
+      "id": "pglite-cli-default-function",
+      "kind": "test",
+      "file": "tests/functions_test.ts",
+      "name": "Supabase CLI Function config loads a default fetch export unchanged",
+      "markers": [
+        "fixtures",
+        "supabase-cli-2.110.0-function",
+        "assertEquals(await response.json(), { message: \"Hello Functions!\" })"
+      ],
+      "targets": [
+        "engine.pglite.supported.supabase-cli-default-export-function"
+      ]
+    },
+    {
+      "id": "postgres-release-functions",
+      "kind": "task",
+      "file": "scripts/smoke_release.ts",
+      "task": "release:smoke:server:windows-x64",
+      "markers": [
+        "client.functions.invoke(\"release-alias\"",
+        "client.functions.invoke(\"compatibility-probe\"",
+        "assertSupabaseServerWorkerContract"
+      ],
+      "targets": [
+        "engine.postgres.supported.deno-serve-function",
+        "engine.postgres.supported.supabase-cli-default-export-function",
+        "module.functions.server.partial",
+        "supabaseServer.postgres.supported.worker.isolated",
+        "supabaseServer.postgres.supported.worker.release-smoke"
+      ]
+    },
+    {
+      "id": "pglite-capability-boundaries",
+      "kind": "test",
+      "file": "tests/app_test.ts",
+      "name": "health endpoints report the actual database readiness",
+      "markers": [
+        "capabilityBody.extensions, [\"plpgsql\"]",
+        "capabilityBody.logicalReplication, \"unavailable\"",
+        "database.logical_replication.unavailable"
+      ],
+      "targets": [
+        "engine.pglite.unsupported.extension.pgcrypto",
+        "engine.pglite.unsupported.extension.uuid-ossp"
+      ]
+    },
+    {
+      "id": "pglite-migration-boundaries",
+      "kind": "test",
+      "file": "tests/doctor_test.ts",
+      "name": "doctor reports unsupported Embedded SQL with structured severity and locations",
+      "markers": [
+        "create extension postgis",
+        "create publication events for all tables",
+        "migration.replication"
+      ],
+      "targets": [
+        "engine.pglite.unsupported.extension.postgis",
+        "engine.pglite.unsupported.logical-replication"
+      ]
+    },
+    {
+      "id": "supabase-server-context-pglite",
+      "kind": "test",
+      "file": "tests/functions_context_test.ts",
+      "name": "real @supabase/server Context uses Minibase Auth, RLS, Storage and Functions",
+      "markers": [
+        "assertSupabaseServerContextContract"
+      ],
+      "supporting": [
+        {
+          "file": "tests/helpers/supabase_server_context.ts",
+          "markers": [
+            "auth: \"user\"",
+            "auth: \"none\"",
+            "context.supabase.auth.getUser()",
+            "context.supabase.from(\"notes\")",
+            "context.supabaseAdmin.from(\"notes\")",
+            "context.supabaseAdmin.storage.from(\"avatars\")",
+            "context.supabaseAdmin.functions.invoke(\"context-target\"",
+            "auth: \"secret:automations\""
+          ]
+        }
+      ],
+      "targets": [
+        "supabaseServer.pglite.supported.auth.user",
+        "supabaseServer.pglite.supported.auth.none",
+        "supabaseServer.pglite.supported.context.user-claims",
+        "supabaseServer.pglite.supported.context.auth-get-user",
+        "supabaseServer.pglite.supported.context.rls-client",
+        "supabaseServer.pglite.supported.context.admin-rest",
+        "supabaseServer.pglite.supported.context.admin-storage",
+        "supabaseServer.pglite.supported.context.admin-functions-invoke",
+        "supabaseServer.pglite.supported.key.default",
+        "supabaseServer.pglite.unsupported.key.named"
+      ]
+    },
+    {
+      "id": "supabase-server-context-postgres",
+      "kind": "test",
+      "file": "tests/postgres_engine_test.ts",
+      "name": "managed PostgreSQL 18.4 initializes, runs the shared fixture and recovers after a crash",
+      "markers": [
+        "assertSupabaseServerContextContract({",
+        "prefix: \"server\""
+      ],
+      "supporting": [
+        {
+          "file": "tests/helpers/supabase_server_context.ts",
+          "markers": [
+            "auth: \"user\"",
+            "auth: \"none\"",
+            "context.supabase.auth.getUser()",
+            "context.supabase.from(\"notes\")",
+            "context.supabaseAdmin.from(\"notes\")",
+            "context.supabaseAdmin.storage.from(\"avatars\")",
+            "context.supabaseAdmin.functions.invoke(\"context-target\"",
+            "auth: \"secret:automations\""
+          ]
+        }
+      ],
+      "targets": [
+        "supabaseServer.postgres.supported.auth.user",
+        "supabaseServer.postgres.supported.auth.none",
+        "supabaseServer.postgres.supported.context.user-claims",
+        "supabaseServer.postgres.supported.context.auth-get-user",
+        "supabaseServer.postgres.supported.context.rls-client",
+        "supabaseServer.postgres.supported.context.admin-rest",
+        "supabaseServer.postgres.supported.context.admin-storage",
+        "supabaseServer.postgres.supported.context.admin-functions-invoke",
+        "supabaseServer.postgres.supported.key.default",
+        "supabaseServer.postgres.unsupported.key.named"
+      ]
+    },
+    {
+      "id": "supabase-server-isolated-pglite",
+      "kind": "test",
+      "file": "tests/functions_worker_context_test.ts",
+      "name": "real @supabase/server Context runs inside an isolated Function worker",
+      "markers": [
+        "assertSupabaseServerWorkerContract",
+        "new FunctionManager"
+      ],
+      "targets": [
+        "supabaseServer.pglite.supported.worker.isolated"
+      ]
+    },
+    {
+      "id": "embedded-release-context",
+      "kind": "task",
+      "file": "scripts/smoke_release.ts",
+      "task": "release:smoke:embedded:windows-x64",
+      "markers": [
+        "assertSupabaseServerWorkerContract",
+        "client.functions.invoke(\"compatibility-probe\""
+      ],
+      "targets": [
+        "supabaseServer.pglite.supported.worker.release-smoke",
+        "module.functions.embedded.partial"
+      ]
+    },
+    {
+      "id": "auth-supabase-js-embedded",
+      "kind": "test",
+      "file": "tests/supabase_js_test.ts",
+      "name": "official supabase-js signs up and performs RLS CRUD against Minibase",
+      "markers": [
+        "createClient(baseUrl",
+        "client.auth.signUp",
+        "client.auth.updateUser",
+        "client.auth.signInWithPassword"
+      ],
+      "targets": [
+        "module.auth.embedded.partial",
+        "module.rest.embedded.partial"
+      ]
+    },
+    {
+      "id": "auth-rest-supabase-js-server",
+      "kind": "test",
+      "file": "tests/server_cli_test.ts",
+      "name": "Server CLI exposes the API without exposing PostgreSQL and survives managed reset",
+      "markers": [
+        "createClient(runtime.apiUrl",
+        "client.auth.signUp",
+        "assertSupabaseRestContract"
+      ],
+      "targets": [
+        "module.auth.server.partial",
+        "module.rest.server.partial"
+      ]
+    },
+    {
+      "id": "storage-supabase-js-embedded",
+      "kind": "test",
+      "file": "tests/storage_test.ts",
+      "name": "official supabase-js uploads, lists, downloads and removes a local object",
+      "markers": [
+        "assertSupabaseStorageContract"
+      ],
+      "supporting": [
+        {
+          "file": "tests/helpers/supabase_storage_contract.ts",
+          "markers": [
+            "createClient(",
+            ".storage.createBucket",
+            ".upload(",
+            ".download(",
+            ".remove("
+          ]
+        }
+      ],
+      "targets": [
+        "module.storage.embedded.partial"
+      ]
+    },
+    {
+      "id": "storage-supabase-js-server",
+      "kind": "test",
+      "file": "tests/postgres_engine_test.ts",
+      "name": "managed PostgreSQL 18.4 initializes, runs the shared fixture and recovers after a crash",
+      "markers": [
+        "assertSupabaseStorageContract({"
+      ],
+      "supporting": [
+        {
+          "file": "tests/helpers/supabase_storage_contract.ts",
+          "markers": [
+            "createClient(",
+            ".storage.createBucket",
+            ".upload(",
+            ".download(",
+            ".remove("
+          ]
+        }
+      ],
+      "targets": [
+        "module.storage.server.partial"
+      ]
+    }
+  ]
+}
