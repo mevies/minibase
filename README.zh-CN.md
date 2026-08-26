@@ -1,211 +1,122 @@
 # Minibase
 
 <p align="center">
-  <img src="./assets/minibase-logo.png" alt="Minibase 标志" width="220">
+  <img src="./assets/minibase-logo.png" alt="Minibase logo" width="220">
 </p>
 
 [English](./README.md) | [简体中文](./README.zh-CN.md)
 
-Minibase 是一个面向本地开发、桌面应用、个人服务和轻量自托管场景的 Supabase-compatible
-后端。它直接读取现有 Supabase 项目的 `supabase/functions`、
-`supabase/migrations`、`supabase/seed.sql` 和 `supabase/config.toml`，提供数据库、Auth、REST、
-Storage 与 Edge Functions，不要求在本地启动整套 Supabase 微服务。
+**在不携带整套 Supabase 本地栈的前提下，用几分钟把已有 Supabase 项目部署到自己的服务器。**
 
-你可以把一个已有 Supabase 项目的源码复制到 Minibase 项目中，先运行兼容性检查，再用一个可执行文件启动
-HTTP API。应用侧继续使用 `@supabase/supabase-js`，Edge Function 也继续使用 Deno、`Deno.serve(...)`
-或 Supabase CLI 生成的默认导出形式。
+Minibase 是一个紧凑的 Supabase-compatible 部署运行时。它直接读取已有项目中的
+`supabase/migrations`、`supabase/seed.sql`、`supabase/functions` 和
+`supabase/config.toml`，通过一个发行包提供常用的 Database、Auth、REST、Storage 与 Edge Functions
+API。应用继续使用 `supabase-js`；正常迁移工作只应包括修改服务地址和密钥，以及处理 `doctor`
+找出的、数量有限且有明确记录的项目不兼容项。
 
-> Minibase 追求的是常用 Supabase 开发体验和项目布局的兼容，不是 Supabase 全部服务的重新打包。
-> Realtime、Studio、完整 PostgREST/GoTrue、OAuth/MFA/SAML 和任意 PostgreSQL Extension
-> 不在当前范围内。
+Minibase 不是 Supabase 全量服务的重新实现或重新打包。Realtime、Studio、Analytics、完整
+PostgREST/GoTrue 行为、OAuth/MFA/SAML 以及任意 PostgreSQL Extension 不在当前范围内。它要解决的
+问题，是用尽量小的迁移面和尽量简单的运维方式，自托管 Supabase 最常用的后端主链路。
 
-## 为什么是 Minibase
+## 目录
 
-- **直接复用 Supabase 项目**：不改写原始 migration、seed 或 Function 源码。
-- **不依赖 Supabase 本地栈**：运行发行版不需要 Docker、Supabase CLI、Node.js 或单独安装 Deno。
-- **一个产品，两种数据库形态**：Embedded 使用内置 PGlite；Server 使用 PostgreSQL 18.4。
-- **默认本地优先**：Storage 默认写入项目本地目录，需要时可切换到 S3-compatible 后端。
-- **客户端迁移成本低**：常用 Auth、REST、Storage 和 Functions 路径可继续通过 `supabase-js` 调用。
-- **本地与远程都能调用 Function**：远程客户端可访问 `/functions/v1/<name>`；Function 内部可使用
-  `fetch` 调用 OpenAI-compatible API 等外部 HTTP 服务。
-- **显式兼容边界**：不支持的 SQL、Extension 或 Supabase 行为会由 `doctor`、`migration check`
-  或运行时明确报错，不静默改变语义。
+- [项目概览](#项目概览)
+- [快速开始](#快速开始)
+- [Minibase 提供什么](#minibase-提供什么)
+- [选择 Edition](#选择-edition)
+- [迁移现有项目](#迁移现有项目)
+- [配置与运维](#配置与运维)
+- [真实项目验收](#真实项目验收)
+- [性能报告](#性能报告)
+- [兼容边界](#兼容边界)
+- [从源码开发](#从源码开发)
+- [文档索引](#文档索引)
+- [许可证](#许可证)
 
-## 架构
+## 项目概览
 
-Minibase 只有一个代码库和一套 Auth、REST、Storage、Functions 与 Migration 实现。Embedded 和 Server
-共享全部上层逻辑，只替换数据库适配器与发行包中携带的数据库资源。
+- 直接复用已有 Supabase 项目，不改写 migration、seed 或 Function 源码；
+- 保留普通 `supabase-js` 的 Auth、REST、Storage 与 Functions 请求路径；
+- Embedded 内置 PGlite，Server 内置或连接外部 PostgreSQL 18.4；
+- 生产运行不依赖 Docker、Node.js、Supabase CLI 或单独安装 Deno；
+- 启动前检查已知 SQL、Extension、Function、配置和双引擎不兼容项；
+- 生成状态只写入 `.minibase/`，与 `supabase/` 源码树隔离。
 
-```mermaid
-flowchart LR
-  Client["应用 / supabase-js / HTTP 客户端"] --> Gateway["Minibase 单一 HTTP 入口"]
-  Gateway --> Auth["Auth / JWT / Session"]
-  Gateway --> REST["REST / CRUD / RLS"]
-  Gateway --> StorageAPI["Storage API"]
-  Gateway --> Functions["Edge Functions Gateway"]
-  Gateway --> Health["Health / Runtime Control"]
+## 快速开始
 
-  Auth --> Database["DatabaseEngine 接口"]
-  REST --> Database
-  StorageAPI --> Database
-  StorageAPI --> ObjectStore["ObjectStore 接口"]
-  Functions --> Workers["按函数管理的 Deno 进程池"]
-  Workers --> Gateway
-  Workers --> Internet["允许的外部 HTTP / SSE API"]
-
-  Database --> PGlite["Embedded: PGlite"]
-  Database --> PostgreSQL["Server: PostgreSQL 18.4 / 外部 PostgreSQL"]
-  ObjectStore --> Local["默认: 本地文件系统"]
-  ObjectStore --> S3["可选: S3-compatible"]
-
-  Project["Supabase 项目源码"] --> Migrations["Migration / Seed Runner"]
-  Project --> Functions
-  Migrations --> Database
-  Runtime[".minibase/ 状态、数据、日志、缓存、备份"] --> Gateway
-```
-
-一次请求只进入一个 `Deno.serve` HTTP listener，然后根据 Supabase-compatible 路径分发：
-
-| 路径                              | 能力                                                           |
-| --------------------------------- | -------------------------------------------------------------- |
-| `/auth/v1/*`                      | 邮箱密码、匿名用户、Session、Refresh Token、基础 Admin 与 JWKS |
-| `/rest/v1/*`                      | 常用 CRUD、过滤、分页、关系选择、upsert、精确 count 与 RLS     |
-| `/storage/v1/*`                   | Bucket、上传、下载、删除、列表、Signed URL、Public URL 与 RLS  |
-| `/functions/v1/<name>`            | JWT、CORS、速率限制、远程调用、Deno Function 与出站 `fetch`    |
-| `/functions/v1/docs`              | 当前 Edge Functions 的浏览器文档页与 Try it 控制台             |
-| `/functions/v1/docs/openapi.json` | 自动生成的 OpenAPI 3.0.3 规格                                  |
-| `/health/live`                    | 进程存活检查                                                   |
-| `/health/ready`                   | 数据库、migration、Storage 与 Functions 就绪检查               |
-
-运行数据集中保存在项目的 `.minibase/` 中；Minibase 不向 `supabase/` 源码目录写入运行状态。
-
-```text
-your-project/
-  minibase.toml               # 可选：Minibase 专属配置
-  supabase/
-    config.toml               # Supabase 项目配置
-    migrations/
-    seed.sql
-    functions/
-  .minibase/                  # Minibase 运行时生成，不应提交到源码仓库
-    data/
-    storage/
-    logs/
-    cache/
-    backups/
-    project.json
-    runtime.json
-    secrets.json
-```
-
-## 功能概览
-
-| 模块             | 当前能力                                                                                                                             |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Migration / Seed | 按 14 位时间戳顺序执行 migration，校验 SHA-256，记录尝试状态；migration 完成后首次执行 `seed.sql`                                    |
-| 数据库           | 常见 PostgreSQL SQL、JSONB、PL/pgSQL Trigger、外键、Policy、`auth.uid()`、`auth.role()` 与 RLS                                       |
-| Auth             | `signUp`、`signInWithPassword`、`signInAnonymously`、`getUser`、`updateUser`、`signOut`、Refresh Token 与基础 Admin                  |
-| REST             | insert/select/update/delete/upsert、single/maybeSingle、range/limit/order、常用过滤、关系选择与 Schema Header                        |
-| Storage          | Local 与 S3-compatible 后端；upload/download/remove/list、Signed URL、Public URL、流式传输、MIME/大小限制与一致性修复                |
-| Edge Functions   | `Deno.serve`、默认导出 Fetch Handler、`@supabase/server` 常用 Context、依赖缓存、热重载、日志、入站 JWT、出站网络策略与 OpenAPI 文档 |
-| 运维             | doctor、双引擎 migration check、健康检查、结构化日志、逻辑备份/恢复、离线升级、Storage 检查/修复与 Auth Key 轮换                     |
-
-完整、可追溯的支持范围见 [Supabase 兼容性矩阵](./docs/COMPATIBILITY.md)。
-
-## 选择 Embedded 还是 Server
-
-| 维度           | Embedded                                    | Server                                             |
-| -------------- | ------------------------------------------- | -------------------------------------------------- |
-| 数据库         | 内置 PGlite                                 | 内置托管 PostgreSQL 18.4，或外部 PostgreSQL        |
-| 推荐场景       | 本地开发、桌面应用、个人服务、NAS、中低并发 | 团队服务、高并发、数据库直连与原生 PostgreSQL 运维 |
-| 写入并发       | PGlite Worker 串行保护数据库事务            | PostgreSQL 连接池并行访问                          |
-| PostgreSQL TCP | 不提供                                      | 托管数据库默认仅本机访问；外部数据库由管理员管理   |
-| Extension      | 仅限发行版已验证的 PGlite 能力              | 取决于随附 Runtime 或外部 PostgreSQL 的实际安装    |
-| Storage        | 默认 Local，可选 S3-compatible              | 默认 Local，可选 S3-compatible                     |
-
-默认优先选择 Embedded。只有需要更高并发、PostgreSQL TCP、原生运维工具、逻辑复制或特定 Extension
-时，再选择 Server。两个发行版不是两条产品分支，应用 API 与项目格式保持一致。
-
-更详细的选择和跨引擎迁移流程见 [Embedded 与 Server 发行版选择](./docs/EDITIONS.md)。
-
-## 五分钟开始使用
-
-### 1. 准备一个 Supabase 项目
-
-Minibase 可以从项目根目录或 `supabase/` 目录开始查找项目。推荐保留标准布局：
+从至少包含 `supabase/config.toml` 的项目根目录开始。Migration、`seed.sql` 与 Functions 均可缺省：
 
 ```text
 your-project/
   supabase/
     config.toml
     migrations/
-      20260801000000_create_schema.sql
     seed.sql
     functions/
-      hello/
-        index.ts
 ```
 
-Migration、seed 和 Functions 都是可选能力，但项目应保留 `supabase/` 目录；已有 Supabase 项目可以直接
-使用，无需执行转换命令。
+下面四种方式都会先运行 `doctor`，再以前台进程启动 Minibase。默认地址为
+`http://127.0.0.1:54321`，就绪检查为 `GET /health/ready`。
 
-### 2. 获取可执行文件
+### EXE：Embedded / PGlite
 
-从项目 Release 中选择与你的平台和数据库形态一致的发行包：
-
-- Windows x64：`minibase-embedded-windows-x64.exe` 或 `minibase-server-windows-x64.exe`
-- Linux x64：`minibase-embedded-linux-x64` 或 `minibase-server-linux-x64`
-- macOS x64：`minibase-embedded-macos-x64` 或 `minibase-server-macos-x64`
-- macOS arm64：`minibase-embedded-macos-arm64` 或 `minibase-server-macos-arm64`
-
-每个发行包包含运行所需的 Runtime、兼容说明和第三方许可证，Release 同时提供独立的 SHA-256
-校验和。Embedded/Server 的正式包均不要求用户另外安装 Deno；Server 默认使用发行包携带的 PostgreSQL
-Runtime，也可通过 `MINIBASE_DATABASE_URL` 连接外部 PostgreSQL。
-
-Linux 和 macOS 首次运行前需要赋予执行权限：
-
-```sh
-chmod 755 ./minibase-embedded-linux-x64
-```
-
-以下 Windows 示例使用 Embedded；其他平台只需替换可执行文件名。
-
-### 3. 启动前检查
+把 `minibase-embedded-windows-x64.exe` 放入项目目录后运行：
 
 ```powershell
-.\minibase-embedded-windows-x64.exe doctor --project .
+.\minibase-embedded-windows-x64.exe doctor --project . --engine pglite
+.\minibase-embedded-windows-x64.exe start --project . --engine pglite
 ```
 
-`doctor` 会在写入数据库前检查项目布局、配置、migration、Function 入口、依赖缓存、数据库能力和已知
-PGlite 不兼容项。退出码 `0` 表示可以继续，退出码 `2` 表示存在必须处理的兼容或安全问题。
+这是部署面最小的方式：PGlite 和 Function Runtime 均已包含，不需要数据库服务。
 
-需要同时验证 Embedded/PGlite 与 Server/PostgreSQL migration 时运行：
+### EXE：Server / PostgreSQL
+
+把 `minibase-server-windows-x64.exe` 放入项目目录后运行：
 
 ```powershell
-.\minibase-server-windows-x64.exe migration check --project .
+.\minibase-server-windows-x64.exe doctor --project . --engine postgres
+.\minibase-server-windows-x64.exe start --project . --engine postgres
 ```
 
-### 4. 启动 Minibase
+Server EXE 会释放并管理内置 PostgreSQL 18.4 Runtime。若要连接已有 PostgreSQL，启动前设置
+`MINIBASE_DATABASE_URL`。Linux 和 macOS 参数相同，只需换成对应发行文件名，并先执行
+`chmod 755 <binary>`。
+
+### 源码：Embedded / PGlite
+
+安装仓库固定的 Deno 版本，克隆本仓库，并让 `--project` 指向 Supabase 项目：
 
 ```powershell
-.\minibase-embedded-windows-x64.exe start --project .
+deno run -A src/main.ts doctor --project C:\apps\your-project --engine pglite
+deno run -A src/main.ts start --project C:\apps\your-project --engine pglite
 ```
 
-`start` 是前台进程。默认监听 `127.0.0.1`，端口优先读取 `supabase/config.toml` 的 `api.port`，缺省为
-`54321`。首次启动会创建 `.minibase/`、初始化数据库、应用 migration、执行 seed、准备 Storage 与
-Function Worker，并写入运行状态和日志。
+### 源码：Server / PostgreSQL
 
-在另一个终端查看状态或停止：
+源码模式不内嵌发行版数据库包，可直接连接一个准备好的 PostgreSQL 数据库：
 
 ```powershell
-.\minibase-embedded-windows-x64.exe status --project . --json
-.\minibase-embedded-windows-x64.exe stop --project .
+$env:MINIBASE_DATABASE_URL = "postgres://minibase:password@127.0.0.1:5432/minibase"
+deno run -A src/main.ts doctor --project C:\apps\your-project --engine postgres
+deno run -A src/main.ts start --project C:\apps\your-project --engine postgres
 ```
 
-### 5. 使用 supabase-js
+也可以把 `MINIBASE_POSTGRES_RUNTIME_DIR` 指向已审计的 PostgreSQL 18.4 Runtime 根目录，并省略
+`MINIBASE_DATABASE_URL`，由源码模式管理该本地 Runtime。
 
-应用代码继续使用普通 Supabase 客户端。当前本地模式下，`anonKey` 只需是非空客户端标识；用户登录后，
-Access Token 会自动用于 RLS 和受保护的 Function。
+在另一个终端确认就绪，并检查或停止运行时：
+
+```powershell
+Invoke-WebRequest http://127.0.0.1:54321/health/ready
+.\minibase-embedded-windows-x64.exe status --project . --engine pglite --json
+.\minibase-embedded-windows-x64.exe stop --project . --engine pglite
+```
+
+源码模式把最后两条命令中的 EXE 替换为 `deno run -A src/main.ts`。公网地址、密钥、冒烟测试与生产部署
+设置见[迁移现有项目](#迁移现有项目)。
+
+应用继续通过同一套 Supabase 客户端 API 连接。用于本地开发时，client key 只需是非空客户端标识；用户
+登录后，`supabase-js` 会携带 Minibase access token 完成 RLS 查询和受保护 Function 调用：
 
 ```ts
 import { createClient } from "@supabase/supabase-js";
@@ -214,84 +125,175 @@ const supabase = createClient("http://127.0.0.1:54321", "minibase-local", {
   auth: { persistSession: false },
 });
 
-const { data: signup, error: signupError } = await supabase.auth.signUp({
+const { data, error } = await supabase.auth.signInWithPassword({
   email: "alice@example.com",
   password: "correct horse battery staple",
-  options: { data: { display_name: "Alice" } },
 });
-if (signupError) throw signupError;
-
-const { data: note, error: noteError } = await supabase
-  .from("notes")
-  .insert({ owner_id: signup.user!.id, body: "hello from Minibase" })
-  .select("id,body")
-  .single();
-if (noteError) throw noteError;
-
-const { data: functionResult, error: functionError } = await supabase.functions.invoke("hello", {
-  body: { noteId: note.id },
-});
-if (functionError) throw functionError;
-
-console.log({ note, functionResult });
+if (error) throw error;
+console.log(data.user);
 ```
 
-### 6. 运行 Supabase Edge Function
+## Minibase 提供什么
 
-原有 Function 可以继续使用 Deno：
+| 模块             | 当前能力                                                                                         |
+| ---------------- | ------------------------------------------------------------------------------------------------ |
+| Migration / Seed | 按时间戳执行 SQL、SHA-256 历史、事务失败恢复、首次启动执行 `seed.sql`                            |
+| Database         | 常见 PostgreSQL SQL、JSONB、PL/pgSQL trigger、外键、policy、`auth.uid()`、`auth.role()` 与 RLS   |
+| Auth             | 注册、密码/匿名登录、用户、session、refresh、更新、退出、基础 Admin 与 JWKS                      |
+| REST             | 常见增删改查、upsert、过滤、关系、计数、range/order、schema header 与 RLS                        |
+| Storage          | 本地或 S3-compatible 对象、bucket、上传/下载/删除/列表、signed/public URL、流式处理与修复        |
+| Edge Functions   | `Deno.serve`、默认 Fetch export、Deno 配置/lockfile、JWT、CORS、worker、日志、出站策略与 OpenAPI |
+| Operations       | `doctor`、双引擎 migration 检查、健康检查、结构化日志、备份恢复、升级、修复与密钥轮换            |
+
+请求继续使用熟悉的 Supabase 路径：
+
+| 路径                              | 能力                                     |
+| --------------------------------- | ---------------------------------------- |
+| `/auth/v1/*`                      | Auth 与 session API                      |
+| `/rest/v1/*`                      | REST、PostgreSQL 查询与 RLS              |
+| `/storage/v1/*`                   | Storage API                              |
+| `/functions/v1/<name>`            | Edge Functions                           |
+| `/functions/v1/docs`              | 自动生成的 Function 文档与 Try it 控制台 |
+| `/functions/v1/docs/openapi.json` | 自动生成的 OpenAPI 3.0.3 规格            |
+| `/health/live`、`/health/ready`   | 存活与流量就绪状态                       |
+
+Function 响应支持普通 JSON 和 OpenAI-compatible SSE 流；Storage 默认使用本地文件，也可切换为
+S3-compatible Storage 后端。
+
+所有上层 API 只有一套实现，两个 Edition 只替换数据库适配器：
+
+```mermaid
+flowchart LR
+  App["应用 / supabase-js"] --> API["Minibase API gateway"]
+  Project["现有 supabase/ 项目"] --> Migrate["Migration 与 seed runner"]
+  Project --> Functions["Deno Function workers"]
+  API --> Auth["Auth"]
+  API --> REST["REST 与 RLS"]
+  API --> Storage["Storage"]
+  API --> Functions
+  Auth --> DB["DatabaseEngine"]
+  REST --> DB
+  Storage --> DB
+  Migrate --> DB
+  DB --> PGlite["Embedded: PGlite"]
+  DB --> Postgres["Server: PostgreSQL 18.4 或外部 PostgreSQL"]
+  Storage --> Objects["本地文件或 S3-compatible Storage"]
+```
+
+运行数据隔离在 `.minibase/` 中；Minibase 不会把生成状态写进 `supabase/` 源码目录。
+
+## 选择 Edition
+
+| 维度              | Embedded                                          | Server                                                   |
+| ----------------- | ------------------------------------------------- | -------------------------------------------------------- |
+| 数据库            | 内置 PGlite                                       | 内置 PostgreSQL 18.4 或外部 PostgreSQL                   |
+| 适合场景          | 评估、本地开发、桌面应用、个人服务、NAS、中低并发 | 普通服务器、团队服务、持续并发写入、原生 PostgreSQL 运维 |
+| 写入并发          | 一个 PGlite Worker 保护事务                       | PostgreSQL 连接池与后端并行执行                          |
+| PostgreSQL TCP    | 不提供                                            | 托管数据库默认只监听回环地址；外部数据库由管理员维护     |
+| Extension         | 仅限固定 PGlite 发行版已验证能力                  | 取决于内置或外部 PostgreSQL 的实际安装                   |
+| 应用 API/项目布局 | 相同                                              | 相同                                                     |
+
+追求最小部署时先用 Embedded；普通多用户服务、较高写并发、PostgreSQL 工具/TCP、逻辑复制或特定
+Extension 则使用 Server。PGlite 与 PostgreSQL 物理数据目录不能互换，切换 Edition 需要逻辑备份和
+恢复。详见 [Edition 选择](./docs/EDITIONS.md)。
+
+## 迁移现有项目
+
+### 1. 保留 Supabase 项目布局
+
+```text
+your-project/
+  supabase/
+    config.toml
+    migrations/
+    seed.sql
+    functions/
+```
+
+Migration、seed 和 Functions 均可单独缺省；Minibase 不会通过转换步骤改写它们。
+
+### 2. 放入发行版
+
+从发行包选择 `minibase-embedded-<platform>` 或 `minibase-server-<platform>`。两个 Edition 都包含
+Deno，Server 还包含已审计的 PostgreSQL Runtime。生产运行不要求 Docker、Node.js、Supabase CLI
+或另外安装 Deno。在 Linux/macOS 上先授予执行权限：
+
+Windows x64 发行文件名为 `minibase-embedded-windows-x64.exe` 和 `minibase-server-windows-x64.exe`。
+
+```sh
+chmod 755 ./minibase-server-linux-x64
+```
+
+### 3. 写入数据前检查兼容性
+
+```sh
+./minibase-server-linux-x64 doctor --project .
+./minibase-server-linux-x64 migration check --project .
+```
+
+`doctor` 检查项目布局、配置、migration、Function 入口和依赖、数据库能力、Storage 与已知不兼容项；
+`migration check` 在隔离的 PGlite 和 PostgreSQL 数据库中实际执行 migration。退出码 `0` 表示允许
+启动，退出码 `2` 表示存在必须检查的兼容或安全问题。
+
+### 4. 配置服务地址与密钥
+
+Supabase-compatible 配置继续放在 `supabase/config.toml`；Minibase 专属配置放进 `minibase.toml`，
+密钥放进受保护的 Secret 文件或环境变量。
+
+```toml
+format_version = 1
+
+[server]
+host = "0.0.0.0"
+port = 54321
+public_url = "https://api.example.com"
+
+[server.cors]
+allowed_origins = ["https://app.example.com"]
+
+[database]
+engine = "postgres"
+```
+
+把应用的 Supabase URL 改为 `public_url`，并提供 Minibase client key。原有 Function 仍然读取
+`SUPABASE_URL`、`SUPABASE_ANON_KEY` 和 `SUPABASE_SERVICE_ROLE_KEY`；Minibase 会依据 Function 策略
+注入当前值。不要提交 `.minibase/secrets.json`、数据库凭据或 service-role key。
+
+### 5. 启动并验收
+
+```sh
+./minibase-server-linux-x64 start --project .
+./minibase-server-linux-x64 status --project . --json
+curl --fail http://127.0.0.1:54321/health/ready
+```
+
+进入 ready 后还要运行应用的真实冒烟链路，不能只看健康检查。该中型项目的验收路径是：注册 -> 登录 ->
+调用 `create_workflow` -> 查回写入行 -> 验证 RLS 拒绝。
+
+客户端代码保持普通 Supabase 写法：
 
 ```ts
-Deno.serve(async (request) => {
-  const body = await request.json();
-  const upstream = await fetch("https://api.example.com/v1/process", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
+import { createClient } from "@supabase/supabase-js";
 
-  return new Response(upstream.body, {
-    status: upstream.status,
-    headers: upstream.headers,
-  });
+const supabase = createClient(
+  "https://api.example.com",
+  process.env.SUPABASE_ANON_KEY!,
+);
+
+const { data, error } = await supabase.functions.invoke("create_workflow", {
+  body: { name: "First workflow", icon: "workflow", workflow: {} },
 });
+if (error) throw error;
 ```
 
-远程客户端可通过以下地址调用：
+公开部署时，应由 Minibase 或可信反向代理终止 TLS，设置准确的 `public_url`，限制 CORS 和可信代理，
+保护 Secret 文件，配置 Function 出站策略，并演练备份恢复。详见
+[生产部署](./docs/DEPLOYMENT.md)与[安全模型](./docs/SECURITY.zh-CN.md)。
 
-```text
-POST https://your-minibase.example/functions/v1/hello
-```
+## 配置与运维
 
-Minibase 也支持 Supabase CLI 2.110.0 `functions new` 生成的默认导出形式，并读取函数目录中的
-`deno.json`、`deno.lock`，以及 `supabase/config.toml` 中的 `verify_jwt`、`entrypoint` 和
-`import_map`。自定义入口和本地依赖必须位于允许的 `supabase/` 安全边界内。
-
-### 7. 查看 Function 文档
-
-启动 Minibase 后，直接打开以下地址即可查看当前项目的函数列表、JWT 要求和本地 Try it 控制台：
-
-```text
-http://127.0.0.1:54321/functions/v1/docs
-```
-
-机器或工具可以读取同源的 OpenAPI 3.0.3 JSON：
-
-```text
-http://127.0.0.1:54321/functions/v1/docs/openapi.json
-```
-
-规格由 `supabase/functions` 目录和 `supabase/config.toml` 实时生成，不执行用户函数，也不会输出
-Secret、环境变量、lockfile 内容或源码正文。Minibase 会根据常见 `request.method`/`case` 分支做有限的
-HTTP 方法启发式识别；请求和响应 schema
-默认是通用描述，复杂业务参数仍应以函数自身校验和项目契约为准。
-
-## 配置
-
-Supabase 兼容配置继续放在 `supabase/config.toml`；Minibase 专属配置放在项目根目录的
-`minibase.toml`。主要配置优先级为：CLI 参数、环境变量、Secret 文件、`minibase.toml`、
-`supabase/config.toml`、默认值。
-
-一个本地 Embedded 配置可以非常简单：
+配置优先级依次为 CLI 参数、环境变量、Secret 文件、`minibase.toml`、`supabase/config.toml`、默认值。
+最小本地配置如下：
 
 ```toml
 format_version = 1
@@ -307,173 +309,146 @@ engine = "pglite"
 [storage]
 driver = "local"
 
-[functions.runtime]
-workers_per_function = 2
-
 [functions.network]
 outbound = "allow"
 allow_supabase_url = true
 block_private_networks = false
 ```
 
-### 远程访问与 Function 出站请求
+Storage 可使用项目内的 `.minibase/storage/`，也可切换到 S3-compatible 后端。Function 出站支持
+`allow`、`allowlist` 和 `deny`；公开部署通常应采用 allowlist，并设置
+`block_private_networks = true`。
 
-Minibase 可以监听非回环地址，因此浏览器、移动端、其他服务器或局域网设备可以请求 Auth、REST、Storage
-和 Functions。对外部署时至少配置 HTTPS、正确的 `public_url`、CORS 和可信代理；推荐由反向代理负责
-公网 TLS。
+| 命令                                       | 用途                                                 |
+| ------------------------------------------ | ---------------------------------------------------- |
+| `start` / `stop` / `status`                | 控制并检查运行时                                     |
+| `doctor`                                   | 在启动前检查项目、数据库、Storage 与 Function 兼容性 |
+| `migration check`                          | 在隔离的 PGlite/PostgreSQL 数据库中执行 migration    |
+| `backup export` / `backup restore`         | 逻辑数据库备份，可选包含 Storage                     |
+| `reset --force` / `upgrade`                | 先做安全备份，再重建或升级数据格式                   |
+| `functions cache` / `functions logs`       | 准备依赖并查看持久 Function 日志                     |
+| `storage check` / `storage repair --force` | 检查或修复元数据/对象一致性                          |
+| `auth keys list/rotate/activate/remove`    | 在不输出私钥的前提下维护 ES256 签名密钥              |
+| `version --json`                           | 输出稳定、机器可读的构建和 Runtime 身份              |
 
-```toml
-format_version = 1
+破坏性命令要求服务已停止、目标已校验，并在需要时显式提供 `--force`。托管数据库默认只监听回环地址。
 
-[server]
-host = "0.0.0.0"
-port = 54321
-public_url = "https://api.example.com"
+## 真实项目验收
 
-[server.cors]
-allowed_origins = ["https://app.example.com"]
+2026-08-26 的严格验收使用一个已经完成、基于 Supabase 的中型项目隔离副本，不是为测试定制的 demo；
+原始项目目录未被修改。
 
-[functions.network]
-outbound = "allowlist"
-allowed_hosts = ["api.openai.com:443", "*.example.com:443"]
-allow_supabase_url = true
-block_private_networks = true
-```
+| 验收输入            |                                              实测值 |
+| ------------------- | --------------------------------------------------: |
+| 源码/配置基线       |                                          279 个文件 |
+| SQL migration       |                                               18 个 |
+| Edge Function 目录  |                   73 个（`config.toml` 注册 71 个） |
+| Public schema       |            10 张表、16 条 policy、7 张启用 RLS 的表 |
+| 安装到 ready        |                        **68,694.41 ms / 1.145 min** |
+| 验收后源码/配置变更 |                              **0 个修改、0 个删除** |
+| Readiness           | Database、migrations、Storage、Functions 全部 ready |
 
-出站策略支持：
+计时从把 Minibase Embedded 可执行文件复制进干净的项目副本开始，到 `GET /health/ready` 返回 HTTP 200
+结束。源码完整性检查对 `supabase/**`、`.env`、`deno.lock`、README 和项目配置逐一比较
+SHA-256。运行状态与自动生成的 Auth 密钥只写入 `.minibase/`，实验结束后已删除。
 
-- `allow`：允许普通外部 `fetch`；
-- `allowlist`：仅允许 `allowed_hosts`；
-- `deny`：拒绝外部网络；
-- `block_private_networks = true`：阻止字面 IP 和 DNS 解析结果指向私网，降低 SSRF 风险；
-- `allow_supabase_url = true`：即使使用 allowlist，也允许 Function 回调当前 Minibase API。
+| 工作流             | 结果                      | 验证内容                                      |
+| ------------------ | ------------------------- | --------------------------------------------- |
+| 邮箱注册、密码登录 | PASS                      | HTTP 200，用户身份一致                        |
+| CRUD               | PASS（service-role 路径） | insert/select/update/delete = 201/200/200/204 |
+| RLS 隔离           | PASS                      | 未获得表授权的 authenticated 访问返回 403     |
+| Storage            | PASS（service-role 路径） | bucket、上传、下载及内容校验                  |
+| `wf_echo`          | PASS                      | GET/POST 均为 200，响应内容一致               |
+| `create_workflow`  | PASS                      | Function 返回成功，并从数据库查回写入行       |
 
-普通 JSON API 与 OpenAI-compatible SSE 流式响应都受支持。更完整的公网部署要求见
-[生产部署指南](./docs/DEPLOYMENT.md)和[安全模型](./docs/SECURITY.zh-CN.md)。
+两次 authenticated 直接请求返回 403，是因为该中型项目没有妥善设计授权：表 grant 及其对应的
+RLS/Storage Policy 未允许 authenticated 直接写入。这是该项目自身明确记录的 Policy 缺陷，不是
+Minibase 兼容失败。预期的 service-role Function 路径成功，RLS 同时阻止了越权读取。本轮并不声称 71 个
+Function 和全部第三方服务都已逐一运行。
 
-### S3-compatible Storage
+测试主机为 Windows 11、Intel Core Ultra 7 265K（20 logical CPU）、32 GiB RAM、Deno 2.9.2。结果相对
+15 分钟门槛有充分余量，但它仍然只代表一台机器；实际服务器上线前仍应运行 `doctor`、全新启动和
+应用自身的冒烟工作流。
 
-Storage 默认使用 `.minibase/storage/`。需要对象存储时配置协议兼容后端：
+## 性能报告
 
-```toml
-format_version = 1
+这里使用两组互补数据。固定机器基准用同一个小型兼容项目比较启动和资源；真实项目基准则在三个后端上
+运行该中型项目完全相同的代表性写入 Function 与 JSON 请求。两组数据回答不同问题，不能混为一个排名。
 
-[storage]
-driver = "s3"
+### 本地从零到 ready
 
-[storage.s3]
-endpoint = "https://objects.example.com"
-region = "auto"
-bucket = "minibase-project"
-path_style = true
-```
+固定测试机为 Windows 11、Intel Core Ultra 7 265K、20 logical CPU、32 GiB RAM。Minibase 报告采用 20
+次正式采样、5 次预热、并发 1/10/50/100 各 100 个请求，并每 500 ms 采集一次进程树 RSS。Supabase
+报告使用 Supabase CLI 2.110.0、Docker Desktop 4.43.2 / Engine 28.3.2、PostgreSQL
+17.6.1.143、相同业务负载和运行中容器 working set。
 
-凭据建议通过 Secret 文件或环境变量提供，不要提交到仓库：
+| 本地后端                          | 全新项目冷启动 | 保留数据热启动 |               空闲应用内存 | 运行形态                                          |
+| --------------------------------- | -------------: | -------------: | -------------------------: | ------------------------------------------------- |
+| Minibase Embedded / PGlite        |    **3.177 s** |    **0.872 s** |              291.6 MiB RSS | 一个 Minibase 进程及 Function workers             |
+| Minibase Server / PostgreSQL 18.4 |    **5.895 s** |    **0.959 s** |        74.9 MiB 进程树 RSS | Minibase 与托管 PostgreSQL                        |
+| Supabase 本地栈                   |   **31.012 s** |   **23.569 s** | 467.5 MiB 容器 working set | DB/Auth/REST/Storage/Functions/网关等 Docker 服务 |
 
-```text
-MINIBASE_S3_ACCESS_KEY_ID=...
-MINIBASE_S3_SECRET_ACCESS_KEY=...
-MINIBASE_S3_SESSION_TOKEN=...
-```
+Server 冷启动包含第一次 `initdb`，其中初始化为 4.326 秒。Supabase 对比主动排除了 Realtime、
+Studio、Analytics/日志、imgproxy、邮件界面、postgres-meta、Vector 和 Supavisor，因此表格比较的是
+Minibase 实际覆盖的服务，不代表 Supabase 全部能力。Docker 容器 working set 与原生进程树 RSS
+不是完全相同的记账方式，且数据未包含 Docker Desktop 共享 VM 的额外开销。
 
-S3-compatible 实现已经通过受控 SigV4、流式传输、CopyObject、故障恢复和单 writer ownership 测试； AWS
-S3、Cloudflare R2、MinIO 等真实厂商环境尚不作为当前发布阻塞条件，上线前应使用独立的非生产 Bucket
-自行验证。
+在这组受控负载中，Minibase/PGlite 的热启动耗时比相同范围的 Supabase 本地栈低 96.3%，测得的空闲
+应用内存低 37.6%。但 Supabase 在小型 CRUD/RLS 请求 P95 中位数上更快（2.852 ms 对 3.726 ms），
+因此这组证据支持 Minibase 的启动速度和运维体积定位，不支持“所有请求延迟都更快”的泛化结论。
 
-## 常用 CLI
+原始证据：[Minibase/PGlite](./benchmarks/supabase/minibase-windows-lab-01/minibase.json)、
+[Supabase 本地栈](./benchmarks/supabase/minibase-windows-lab-01/supabase.json)、
+[对比结论](./benchmarks/supabase/minibase-windows-lab-01/comparison.json)，以及
+[固定机器 PGlite](./benchmarks/fixed/minibase-windows-lab-01/current/pglite.json)与
+[PostgreSQL](./benchmarks/fixed/minibase-windows-lab-01/current/postgres.json)原始报告。完整口径见
+[性能与回归证据](./docs/PERFORMANCE.md)。
 
-```text
-minibase <command> [options]
-```
+### 中型项目 `create_workflow` 负载
 
-| 命令                                                 | 用途                                                              |
-| ---------------------------------------------------- | ----------------------------------------------------------------- |
-| `start` / `stop` / `status`                          | 启动、停止和查看运行状态                                          |
-| `doctor`                                             | 在写入数据前检查项目、配置、数据库、Storage 和 Functions          |
-| `prepare`                                            | 只创建运行目录与引擎标记                                          |
-| `reset --force`                                      | 先安全备份，再重建数据库与当前配置的 Storage                      |
-| `upgrade`                                            | 离线备份并升级项目数据格式                                        |
-| `migration check`                                    | 在隔离的 Embedded 与 Server 数据库中检查 migration                |
-| `migration recover --migration-version <id> --force` | 人工确认后重试中断的非事务 migration                              |
-| `backup export` / `backup restore`                   | 导出或恢复版本化逻辑备份，可通过 `--include-storage` 携带对象正文 |
-| `functions cache`                                    | 下载并验证所有 Function 依赖                                      |
-| `functions logs`                                     | 读取持久化 Function 日志，可用 `--function` 和 `--tail` 过滤      |
-| `storage check` / `storage repair --force`           | 离线检查或修复对象元数据与正文不一致                              |
-| `storage unlock --force`                             | 所有 writer 停止后释放崩溃遗留的 S3 ownership                     |
-| `auth keys list/rotate/activate/remove`              | 管理 ES256 Auth 签名密钥，不输出私钥                              |
-| `version --json`                                     | 输出稳定、机器可解析的版本信息                                    |
+三行数据使用同一台主机、同一份 Function 源码、同一个 JSON body，并从客户端发起 HTTP 请求计时到
+响应完成。每个后端先预热 5 次，再顺序采样 40 次，随后以并发 10 运行 5 批，共 50 个请求。请求耗时
+包含 gateway、Function、Auth 校验和数据库写入，不包含首次依赖下载和服务启动。
 
-所有命令都支持 `--project <path>`；数据库相关命令可使用 `--engine pglite` 或
-`--engine postgres`。自动化脚本建议统一使用
-`--json`。具有破坏性的命令不会静默执行，必须满足停止服务、 目标路径验证和 `--force` 等前置条件。
+| 后端                            |      平均值 |         P50 |          P95 |          P99 |    并发 10 吞吐 | 并发平均延迟 |
+| ------------------------------- | ----------: | ----------: | -----------: | -----------: | --------------: | -----------: |
+| Minibase + PGlite               |    10.95 ms |    10.81 ms |     12.07 ms |     12.76 ms |      57.5 req/s |     149.5 ms |
+| Minibase + PostgreSQL           | **9.20 ms** | **8.94 ms** | **10.15 ms** | **12.32 ms** | **171.0 req/s** |  **42.2 ms** |
+| Supabase 本地栈（完整项目副本） |    33.02 ms |    32.89 ms |     35.09 ms |     35.69 ms |     147.6 req/s |      61.4 ms |
 
-## Migration、备份与引擎迁移
+PGlite 不需要外部数据库，对该工作流已经完全够用。托管 PostgreSQL 的顺序 P50 比 PGlite 低 17.3%，
+并发吞吐约为 PGlite 的 2.97 倍，因此持续并发写入场景更适合 Server。若应用依赖 Minibase 未实现的
+Supabase 服务，则应继续选择官方 Supabase 本地栈。
 
-Minibase 会记录每个 migration 的版本、SHA-256、事务策略和 `running` / `failed` / `applied`
-状态。默认事务型 migration 中断后可依靠数据库回滚安全重试；显式标注 `-- minibase:no-transaction` 的
-migration 可能产生部分副作用，因此需要人工核对后执行 `migration recover --force`。
+官方 Supabase 对比副本需要两项明确记录的兼容处理：它扫描全部 Function 时会从一条注释 import
+继续寻找缺失的本地模块，因此补了一个占位文件；同时显式加入
+`GRANT ALL ON public.workflow TO service_role`。Minibase 不需要这两项源码变更，其 bootstrap 已提供
+预期的 service-role 表访问路径。上述结果只适用于这台机器和这个轻量 JSON workflow，不能外推为所有 SQL
+负载或生产网络下的通用排名。
 
-Embedded 的 PGlite 数据目录不能直接转换成 PostgreSQL 数据目录。切换引擎应使用逻辑备份：
+## 兼容边界
 
-```powershell
-# 在 Embedded 项目中停止并导出
-.\minibase-embedded-windows-x64.exe stop --project .
-.\minibase-embedded-windows-x64.exe backup export --project . --engine pglite `
-  --output .minibase\backups\to-server --include-storage
+可追溯兼容目标为 Supabase CLI 2.110.0 项目布局、`supabase-js` 2.110.9，以及在双引擎验证的
+`@supabase/server` 1.4.1 Context 子集。完整范围见 [Supabase 兼容性矩阵](./docs/COMPATIBILITY.md)。
 
-# 在一个新的 Server 项目目录中恢复
-.\minibase-server-windows-x64.exe backup restore --project . --engine postgres `
-  --input C:\absolute\path\to\to-server
-```
+当前不包含：
 
-逻辑备份可以在 Local 与 S3-compatible Storage 之间流式迁移对象正文。覆盖已有目标必须显式使用
-`--force`，Minibase 会先创建安全备份；远程对象的覆盖和自动升级仍遵循更严格的快照与 ownership 边界。
+- Realtime 协议、broadcast 与 presence；
+- Studio、Analytics、Logs Explorer 和完整 Supabase 管理面；
+- 完整 PostgREST/GoTrue 等价性、OAuth provider、MFA、SAML、CAPTCHA 与托管邮件投递；
+- 任意 PostgreSQL Extension；固定 PGlite 发行版尤其不提供 PostgreSQL TCP、逻辑复制、PostGIS、
+  `pgcrypto` 或 `uuid-ossp`；
+- 把 PGlite 物理数据目录自动转换成 PostgreSQL；
+- 面向互不信任 Function tenant 的操作系统级安全沙箱。
 
-## 安全与生产部署
-
-Minibase 默认只监听 `127.0.0.1`，适合本地可信 Supabase 项目。若监听 `0.0.0.0`
-或公网地址，请至少完成：
-
-- 使用 HTTPS 或受信任反向代理，不直接暴露明文公网服务；
-- 设置精确的 `public_url`、CORS Origin 与可信代理范围；
-- 将数据库连接串、S3 凭据和外部 Secret 放入受保护的 Secret 文件或环境变量；
-- 对公开 Function 设置 `inject_service_role_key = false`，除非它确实需要管理权限；
-- 使用 `allowlist` 和 `block_private_networks = true` 限制 Function 出站网络；
-- 将 `/health/live` 用作存活检查，将 `/health/ready` 用作流量就绪检查；
-- 定期执行离线逻辑备份，并演练恢复、升级与回滚；
-- 使用 `functions logs`、运行时结构化日志和 request id 排查问题；
-- 不把本地可信 Function 进程池当作不可信多租户的操作系统级沙箱。
-
-完整上线清单见 [生产部署指南](./docs/DEPLOYMENT.md)、[请求入口保护](./docs/REQUEST_PROTECTION.md)、
-[Auth 安全策略](./docs/AUTH_SECURITY.md)和[故障排查](./docs/TROUBLESHOOTING.md)。
-
-## 当前兼容边界
-
-Minibase 已验证的兼容目标包括 Supabase CLI 2.110.0 项目布局、supabase-js 2.110.9，以及
-`@supabase/server` 1.4.1 的常用 Function Context 子集。
-
-当前明确不承诺：
-
-- Realtime、Studio、GraphQL 和数据库变更订阅；
-- 完整 PostgREST 语法、所有 Operator 与 RPC；
-- OAuth、Magic Link/OTP 邮件、MFA、SAML 和完整 GoTrue 配置；
-- 图片转换、Analytics Bucket、Vector Bucket；
-- Embedded/PGlite 的 PostgreSQL TCP、逻辑复制、PostGIS、`pgcrypto`、`uuid-ossp` 或任意动态
-  Extension；
-- 自动把 PGlite 物理数据目录转换为 PostgreSQL；
-- 自定义命名 Publishable/Secret Key；
-- 未经验证代码的强多租户隔离或严格的单请求进程隔离。
-
-若项目依赖未列出的 Supabase/PostgreSQL 行为，请先运行 `doctor` 与 `migration check`，再用你的真实
-fixture 分别验证 Embedded 和 Server。
+Minibase 会报告不支持的行为，而不是静默改写 SQL 语义。依赖未列出的 Supabase/PostgreSQL 行为时，
+必须先运行 `doctor` 与 `migration check`，再以项目自己的端到端冒烟测试完成迁移验收。
 
 ## 从源码开发
 
-普通发行版用户不需要安装 Deno。参与 Minibase 开发时使用仓库固定的 Deno 2.9.2：
+源码工具链固定在 `deno.json` 与 `toolchain.json` 中：
 
-```powershell
-deno run -A src/main.ts --help
-deno run -A src/main.ts doctor --project fixtures\supabase-basic
+```sh
 deno task fmt:check
 deno task lint
 deno task check
@@ -481,26 +456,22 @@ deno task test
 deno task verify:baseline
 ```
 
-Node.js 不是 Minibase 的开发或运行依赖。Rust
-目前也不是必需组件；只有真实性能分析证明需要原生优化时， 才会引入对应模块。
+`benchmarks/` 保存固定机器回归数据和双引擎 30 分钟 soak 证据；每个引擎均完成 1,787 个循环、16,113
+次操作且零失败。Rust/WASM 原生优化受真实性能分析门禁约束，目前不是产品组成部分。
 
 ## 文档索引
 
-- [五分钟启动指南](./docs/GETTING_STARTED.md)
-- [Embedded 与 Server 发行版选择](./docs/EDITIONS.md)
+- [快速开始](./docs/GETTING_STARTED.md)
+- [生产部署](./docs/DEPLOYMENT.md)
 - [Supabase 兼容性矩阵](./docs/COMPATIBILITY.md)
-- [生产部署指南](./docs/DEPLOYMENT.md)
-- [安全模型与威胁边界](./docs/SECURITY.zh-CN.md)
-- [升级与回滚](./docs/UPGRADING.md)
-- [CLI 输出契约](./docs/CLI_OUTPUT.md)
-- [健康检查](./docs/HEALTH.md)
-- [日志](./docs/LOGGING.md)
-- [Doctor 诊断](./docs/DOCTOR.md)
+- [性能测试方法与证据](./docs/PERFORMANCE.md)
+- [Embedded 与 Server](./docs/EDITIONS.md)
+- [安全模型](./docs/SECURITY.zh-CN.md)
 - [故障排查](./docs/TROUBLESHOOTING.md)
-- [版本策略](./docs/VERSIONS.md)
-- [第三方许可证索引](./docs/THIRD_PARTY_LICENSES.md)
+- [升级指南](./docs/UPGRADING.md)
+- [版本与支持策略](./docs/VERSIONS.md)
 
 ## 许可证
 
-Minibase 使用 [Apache License 2.0](./LICENSE) 开源。发行包还会完整保留 Deno、PGlite、PostgreSQL、
-OpenSSL、ICU 等第三方组件各自适用的许可证与通知。
+Minibase 使用 [Apache License 2.0](./LICENSE) 开源。发行包会保留 Deno、PGlite、PostgreSQL、
+OpenSSL、ICU 及其他第三方组件适用的许可证与声明。
